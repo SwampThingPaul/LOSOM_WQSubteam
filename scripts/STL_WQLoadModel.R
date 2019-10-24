@@ -150,7 +150,7 @@ plot(mean.TN~format(wq.dat.xtab.mon$monCY,"%m"),wq.dat.xtab.mon)
 plot(mean.TP~format(wq.dat.xtab.mon$monCY,"%m"),wq.dat.xtab.mon)
 
 stl.hydro.wq.mon=merge(stl.hydro.mon,wq.dat.xtab.mon,c("WY","monCY"))
-stl.hydro.wq.mon$hydro.season=FL.Hydroseason(stl.hydro.wq.mon$monCY)
+stl.hydro.wq.mon$hydro.season=as.numeric(FL.Hydroseason(stl.hydro.wq.mon$monCY)=="B_Dry")
 stl.hydro.wq.mon$month=as.numeric(format(stl.hydro.wq.mon$monCY,"%m"))
 stl.hydro.wq.mon=merge(stl.hydro.wq.mon,data.frame(month=c(5:12,1:4),month.plot=1:12),"month",all.x=T)
 stl.hydro.wq.mon=stl.hydro.wq.mon[order(stl.hydro.wq.mon$monCY),]
@@ -762,6 +762,9 @@ axis_fun(2,ymaj,ymin,ymaj*100);box(lwd=1)
 mtext(side=1,line=2,"Model Parameters")
 mtext(side=2,line=2.5,"Percent of R\u00B2")
 dev.off()
+#paste(round(rslt@R2,2)," metrics are normalized to sum 1.0")
+rslt@R2.boot
+mean(rslt@R2.boot)
 
 ##
 ## TN Model

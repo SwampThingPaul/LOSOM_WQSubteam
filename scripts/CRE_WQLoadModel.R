@@ -22,6 +22,7 @@ library(rkt)
 library(car)
 library(pedometrics)
 library(MASS)
+library(relaimpo)
 
 #Paths
 wd="D:/Work/LOSOM_WQ"
@@ -184,7 +185,7 @@ plot(mean.TN~format(wq.dat.xtab.mon$monCY,"%m"),wq.dat.xtab.mon)
 plot(mean.TP~format(wq.dat.xtab.mon$monCY,"%m"),wq.dat.xtab.mon)
 
 cre.hydro.wq.mon=merge(cre.hydro.mon,wq.dat.xtab.mon,c("WY","monCY"))
-cre.hydro.wq.mon$hydro.season=FL.Hydroseason(cre.hydro.wq.mon$monCY)
+cre.hydro.wq.mon$hydro.season=as.numeric(FL.Hydroseason(cre.hydro.wq.mon$monCY)=="B_Dry")
 cre.hydro.wq.mon$month=as.numeric(format(cre.hydro.wq.mon$monCY,"%m"))
 cre.hydro.wq.mon=merge(cre.hydro.wq.mon,data.frame(month=c(5:12,1:4),month.plot=1:12),"month",all.x=T)
 cre.hydro.wq.mon=cre.hydro.wq.mon[order(cre.hydro.wq.mon$monCY),]
@@ -230,18 +231,8 @@ mtext(side=1,line=1.75,"Month")
 mtext(side=2,line=2.5,"Total Nitrogen (mg L\u207B\u00B9)")
 dev.off()
 
-## trend analysis
-# Monthly
-wq.dat.xtab.mon$decWY=decimal.WY(wq.dat.xtab.mon$monCY)
-wq.dat.xtab.mon$month=as.numeric(format(wq.dat.xtab.mon$monCY,"%m"))
-wq.dat.xtab.mon$CY=as.numeric(format(wq.dat.xtab.mon$monCY,"%Y"))
-
-WYs=WY(dates[1]):WY(dates[2])
-months=rep(1:12,length(WYs))
-wq.dat.xtab.mon2=merge(data.frame(WY=sort(rep(WYs,12)),month=months,fill=1),wq.dat.xtab.mon,c("WY","month"),all.x=T)
-
+# Autocorrelation
 #TP
-#Autocorrelation
 acf(wq.dat.xtab.mon$mean.TP)
 pacf(wq.dat.xtab.mon$mean.TP)
 #test=data.frame(pacf=ar.yw(wq.dat.xtab.mon$mean.TP,floor(10 * (log10(length(wq.dat.xtab.mon$mean.TP)))))$partialacf)
@@ -316,18 +307,6 @@ for(h in 0:3){
 mtext(side=1,line=1,outer=T,"Lagged TP (\u03BCg L\u207B\u00B9)",cex=1)
 dev.off()
 
-
-#Trend
-with(wq.dat.xtab.mon,cor.test(mean.TP,decWY,method="kendall"))
-#with(subset(wq.dat.xtab.mon,is.na(mean.TP)==F),zyp.sen(mean.TP~decWY))
-with(subset(wq.dat.xtab.mon,is.na(mean.TP)==F),mblm(mean.TP~decWY,repeated = T))
-plot(mean.TP~decWY,wq.dat.xtab.mon,las=1,type="b")
-abline(with(subset(wq.dat.xtab.mon,is.na(mean.TP)==F),mblm(mean.TP~decWY,repeated = T)),col="red")
-
-#seasonal kendall
-wq.dat.xtab.mon$hydro.season=FL.Hydroseason(wq.dat.xtab.mon$monCY)
-with(subset(wq.dat.xtab.mon,is.na(mean.TP)==F),rkt(decimal_date(monCY),mean.TP,month))
-
 #TN
 #Autocorrelation
 acf(subset(wq.dat.xtab.mon,is.na(mean.TN)==F)$mean.TN)
@@ -397,7 +376,29 @@ for(h in 0:3){
 mtext(side=1,line=1,outer=T,"Lagged TN (mg L\u207B\u00B9)",cex=1)
 dev.off()
 
-#Trend
+## trend analysis
+wq.dat.xtab.mon$decWY=decimal.WY(wq.dat.xtab.mon$monCY)
+wq.dat.xtab.mon$month=as.numeric(format(wq.dat.xtab.mon$monCY,"%m"))
+wq.dat.xtab.mon$CY=as.numeric(format(wq.dat.xtab.mon$monCY,"%Y"))
+
+WYs=WY(dates[1]):WY(dates[2])
+months=rep(1:12,length(WYs))
+wq.dat.xtab.mon2=merge(data.frame(WY=sort(rep(WYs,12)),month=months,fill=1),wq.dat.xtab.mon,c("WY","month"),all.x=T)
+
+# TP
+# Monthly
+with(wq.dat.xtab.mon,cor.test(mean.TP,decWY,method="kendall"))
+#with(subset(wq.dat.xtab.mon,is.na(mean.TP)==F),zyp.sen(mean.TP~decWY))
+with(subset(wq.dat.xtab.mon,is.na(mean.TP)==F),mblm(mean.TP~decWY,repeated = T))
+plot(mean.TP~decWY,wq.dat.xtab.mon,las=1,type="b")
+abline(with(subset(wq.dat.xtab.mon,is.na(mean.TP)==F),mblm(mean.TP~decWY,repeated = T)),col="red")
+
+#seasonal kendall
+wq.dat.xtab.mon$hydro.season=FL.Hydroseason(wq.dat.xtab.mon$monCY)
+with(subset(wq.dat.xtab.mon,is.na(mean.TP)==F),rkt(decimal_date(monCY),mean.TP,month))
+
+# TN
+# Monthly
 with(wq.dat.xtab.mon,cor.test(mean.TN,decWY,method="kendall"))
 with(subset(wq.dat.xtab.mon,is.na(mean.TN)==F),mblm(mean.TN~decWY,repeated = T))
 plot(mean.TN~decWY,wq.dat.xtab.mon,las=1,type="b")
@@ -528,6 +529,7 @@ dev.off()
 
 
 
+# Model Development -------------------------------------------------------
 ###
 ## TP Model
 #vars=c("mean.TP","grad","C43Basin","S78","S79","S77","basin.q.ratio","hydro.season")
@@ -542,6 +544,37 @@ summary(S79.TP.mod)
 S79.TP.mod.sw=stepAIC(S79.TP.mod,direction="both",trace=F)
 S79.TP.mod.sw$anova
 
+# Calculate Relative Importance for Each Predictor
+# Bootstrap Measures of Relative Importance (1000 samples)
+boot <- boot.relimp(S79.TP.mod, b = 1000, rank=T,diff = TRUE, rela = TRUE)
+booteval.relimp(boot) # print result
+plot(booteval.relimp(boot,sort=TRUE))
+rslt=booteval.relimp(boot,sort=TRUE)
+
+pick=which.max(rslt@level)
+index <- sort(rslt@lmg, decreasing = T, index = T)$ix
+xnames=rslt@namen[2:((length(rslt@namen) - 1) + 1)][index]
+xlabs=c("Season","Basin Ratio",expression(paste("Q"["C43Basin"])),"Gradient",expression(paste("Q"["S77"])))
+ylim.val=c(0,1);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+#tiff(filename=paste0(plot.path,"S79_TPModel_relaimpo.tiff"),width=4.25,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+par(family="serif",mar=c(2,3,1.5,1.75),oma=c(2,1,0.5,0.5));
+
+x=barplot(rslt@lmg[index], ylim =ylim.val,axes=F,col="grey80")
+segments(x, rslt@lmg.lower[pick, ][index], x, rslt@lmg.upper[pick, ][index],lwd=1.5,col="black")
+axis_fun(1,line=-0.5,x,x,xlabs,cex=0.75)
+axis_fun(2,ymaj,ymin,ymaj*100);box(lwd=1)
+mtext(side=1,line=2,"Model Parameters")
+mtext(side=2,line=2.5,"Percent of R\u00B2")
+dev.off()
+#paste0("R\u00B2 = ", round(rslt@R2,2),"; metrics are normalized to sum 1.0")
+#rslt@R2.boot
+#bootstrapped R2
+mean(rslt@R2.boot)
+mean(rslt@R2.boot)+qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#upper 95%CI
+mean(rslt@R2.boot)-qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#lower 95%CI
+
+##
+##
 #tiff(filename=paste0(plot.path,"S79_TPModel_diag.tiff"),width=6,height=5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 #png(filename=paste0(plot.path,"png/S79_TPModel_diag2.png"),width=6,height=5,units="in",res=200,type="windows",bg="white")
 par(family="serif",mar=c(2,3,1,0.5),oma=c(2,1,0.25,0.75));
