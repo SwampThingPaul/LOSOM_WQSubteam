@@ -1,7 +1,7 @@
 # LOSOM WQ Subteam - Technical Analysis
  
 ## Contact
-Paul Julian - [Webpage](http://swampthingecology.org) - [Twitter](https://twitter.com/SwampThingPaul) - [Personal Email](mailto:pauljulianphd@gmail.com) 
+Paul Julian - [Webpage](http://swampthingecology.org) - [Personal Email](mailto:pauljulianphd@gmail.com) 
 
 
 ## Description/contents
