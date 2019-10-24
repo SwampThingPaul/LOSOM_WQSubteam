@@ -91,10 +91,11 @@ q.cre.dat.xtab$WY=WY(q.cre.dat.xtab$Date.EST)
 
 q.cre.dat.xtab$S77=with(q.cre.dat.xtab,ifelse(S77<0,0,S77))
 q.cre.dat.xtab$S78=with(q.cre.dat.xtab,ifelse(S78<0,0,S78))
+q.cre.dat.xtab$S78QFreq=as.numeric(q.cre.dat.xtab$S78>0)
 q.cre.dat.xtab$C43.basin.in=with(q.cre.dat.xtab,ifelse(S79<S77,0,S79-S77))
 q.cre.dat.xtab$basin.ratio=with(q.cre.dat.xtab,ifelse(S79==0,NA,C43.basin.in/S79))
 
-q.cre.dat.xtab.mon=ddply(q.cre.dat.xtab,c("monCY","WY"),summarise,S77=sum(S77,na.rm=T),S78=sum(S78,na.rm=T),S79=sum(S79,na.rm=T))
+q.cre.dat.xtab.mon=ddply(q.cre.dat.xtab,c("monCY","WY"),summarise,S77=sum(S77,na.rm=T),S78=sum(S78,na.rm=T),S79=sum(S79,na.rm=T),S78Qfreq=sum(S78QFreq,na.rm=T))
 q.cre.dat.xtab.mon$C43Basin=with(q.cre.dat.xtab.mon,ifelse(S79<S77,0,S79-S77))
 q.cre.dat.xtab.mon$basin.q.ratio=with(q.cre.dat.xtab.mon,C43Basin/S79)
 
@@ -102,6 +103,8 @@ plot(C43Basin~monCY,q.cre.dat.xtab.mon,type="l")
 plot(basin.q.ratio~monCY,q.cre.dat.xtab.mon,type="l")
 plot(S78~monCY,q.cre.dat.xtab.mon,type="l")
 with(q.cre.dat.xtab.mon,lines(monCY,S79,col="red"))
+
+plot(S78Qfreq~monCY,q.cre.dat.xtab.mon,type="l")
 
 # Stage data
 stg.dbkeys=data.frame(SITE=c("S79_H","S79_H","S235_T","S235_T"),DBKEY=c("00864","AN786","15566","38259"))
@@ -129,9 +132,10 @@ stg.dat.da.xtab.mon=ddply(stg.dat.da.xtab,c("monCY","WY"),summarise,
                           S79_H=mean(S79_H,na.rm=T),
                           S235_T=mean(S235_T,na.rm=T),
                           grad=mean(grad,na.rm=T))
+stg.dat.da.xtab.mon$grad.rollmean=c(rep(NA,2),rollmean(stg.dat.da.xtab.mon$grad,3,na.rm=T))
 
-plot(grad~monCY,stg.dat.da.xtab.mon,type="l");mtext(side=3,"test")
-
+plot(grad~monCY,stg.dat.da.xtab.mon,type="l");
+with(stg.dat.da.xtab.mon,lines(monCY,grad.rollmean,col="red"))
 
 cre.hydro.mon=merge(q.cre.dat.xtab.mon,stg.dat.da.xtab.mon,c("monCY","WY"))
 plot(grad~monCY,cre.hydro.mon,type="l")
@@ -540,9 +544,11 @@ shapiro.test(residuals(S79.TP.mod));hist(residuals(S79.TP.mod))
 vif(S79.TP.mod)
 summary(S79.TP.mod)
 
+dev.off()
 #AIC model
 S79.TP.mod.sw=stepAIC(S79.TP.mod,direction="both",trace=F)
 S79.TP.mod.sw$anova
+summary(S79.TP.mod.sw)
 
 # Calculate Relative Importance for Each Predictor
 # Bootstrap Measures of Relative Importance (1000 samples)
@@ -553,9 +559,9 @@ rslt=booteval.relimp(boot,sort=TRUE)
 
 pick=which.max(rslt@level)
 index <- sort(rslt@lmg, decreasing = T, index = T)$ix
-xnames=rslt@namen[2:((length(rslt@namen) - 1) + 1)][index]
+xnames=rslt@namen[2:((length(rslt@namen) - 1) + 1)][index];xnames
 xlabs=c("Season","Basin Ratio",expression(paste("Q"["C43Basin"])),"Gradient",expression(paste("Q"["S77"])))
-ylim.val=c(0,1);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+ylim.val=c(0,0.5);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
 #tiff(filename=paste0(plot.path,"S79_TPModel_relaimpo.tiff"),width=4.25,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(2,3,1.5,1.75),oma=c(2,1,0.5,0.5));
 
@@ -565,13 +571,24 @@ axis_fun(1,line=-0.5,x,x,xlabs,cex=0.75)
 axis_fun(2,ymaj,ymin,ymaj*100);box(lwd=1)
 mtext(side=1,line=2,"Model Parameters")
 mtext(side=2,line=2.5,"Percent of R\u00B2")
+#legend("topright",legend=c(paste0("R\u00B2 = ", round(rslt@R2,2),"\n metrics are normalized to sum 100%")),lty=NA,lwd=NA,col=NA,cex=0.75,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
 dev.off()
 #paste0("R\u00B2 = ", round(rslt@R2,2),"; metrics are normalized to sum 1.0")
 #rslt@R2.boot
 #bootstrapped R2
-mean(rslt@R2.boot)
-mean(rslt@R2.boot)+qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#upper 95%CI
-mean(rslt@R2.boot)-qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#lower 95%CI
+#mean(rslt@R2.boot)
+#mean(rslt@R2.boot)+qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#upper 95%CI
+#mean(rslt@R2.boot)-qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#lower 95%CI
+
+ylim.val=c(0,1.05);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+#tiff(filename=paste0(plot.path,"S79_TPModel_relaimpo_v2.tiff"),width=3,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+par(family="serif",mar=c(1,3,1.5,1.75),oma=c(1,1,0.5,0.5));
+cols=wesanderson::wes_palette("Zissou1")#nationalparkcolors::park_palette("Everglades",5)
+x=barplot(t(rbind(rslt@lmg[index],rep(NA,5))),col=rev(cols), ylim =ylim.val,axes=F)
+text(x[1]+diff(x)/2,cumsum(rslt@lmg[index])-(cumsum(rslt@lmg[index])-c(0,cumsum(rslt@lmg[index])[1:4]))/2,xlabs,adj=0)
+axis_fun(2,ymaj,ymin,ymaj*100);box(lwd=1)
+mtext(side=2,line=2.5,"Percent of R\u00B2")
+dev.off()
 
 ##
 ##
@@ -753,7 +770,7 @@ layout(matrix(1:6,3,2))
 ylim.val=c(0.05,0.35);ymaj=log.scale.fun(ylim.val,"major");ymin=log.scale.fun(ylim.val,"minor")
 xlim.val=c(5.5,8.6);by.x=1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
 
-plot(mean.TP~grad,cre.hydro.wq.mon,log="y",ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
+plot(mean.TP~drad,cre.hydro.wq.mon,log="y",ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
 with(cre.hydro.wq.mon,points(grad,mean.TP,pch=21,bg="indianred1",lwd=0.1))
 mod=lm(log(mean.TP)~grad,cre.hydro.wq.mon)
@@ -820,8 +837,9 @@ dev.off()
 ##
 ## TN Model
 #vars=c("mean.TP","grad","C43Basin","S78","S79","S77","basin.q.ratio","hydro.season")
-vars=c("mean.TN","grad","C43Basin","S77","basin.q.ratio","hydro.season")
-S79.TN.mod=lm((1/mean.TN)~.,na.omit(cre.hydro.wq.mon[,vars]))
+vars=c("mean.TN","grad","C43Basin","S77","basin.q.ratio","hydro.season","S78Qfreq")
+S79.TN.mod=lm((1/mean.TN)~
+                .,na.omit(cre.hydro.wq.mon[,vars]))
 layout(matrix(1:4,2,2));plot(S79.TN.mod)
 shapiro.test(residuals(S79.TN.mod));hist(residuals(S79.TN.mod))
 vif(S79.TN.mod)
@@ -834,6 +852,50 @@ summary(S79.TN.mod.sw)
 layout(matrix(1:4,2,2));plot(S79.TN.mod.sw)
 shapiro.test(residuals(S79.TN.mod.sw));
 vif(S79.TN.mod.sw)
+
+#S79.TN.glm=glm((1/mean.TN)~.,na.omit(cre.hydro.wq.mon[,vars]),family="gaussian")
+#1-(summary(S79.TN.glm)$deviance/summary(S79.TN.glm)$null.deviance)
+
+S79.TN.mod=lm(formula(S79.TN.mod.sw),na.omit(cre.hydro.wq.mon[,vars]))
+# Calculate Relative Importance for Each Predictor
+# Bootstrap Measures of Relative Importance (1000 samples)
+boot <- boot.relimp(S79.TN.mod, b = 1000, rank=T,diff = TRUE, rela = TRUE)
+booteval.relimp(boot) # print result
+plot(booteval.relimp(boot,sort=TRUE))
+rslt=booteval.relimp(boot,sort=TRUE)
+
+pick=which.max(rslt@level)
+index <- sort(rslt@lmg, decreasing = T, index = T)$ix
+xnames=rslt@namen[2:((length(rslt@namen) - 1) + 1)][index];xnames
+xlabs=c("Basin Ratio","Gradient",expression(paste("Q"["S78"]," Freq")))
+ylim.val=c(0,1);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+#tiff(filename=paste0(plot.path,"S79_TNModel_relaimpo.tiff"),width=4.25,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+par(family="serif",mar=c(2,3,1.5,1.75),oma=c(2,1,0.5,0.5));
+
+x=barplot(rslt@lmg[index], ylim =ylim.val,axes=F,col="grey80")
+segments(x, rslt@lmg.lower[pick, ][index], x, rslt@lmg.upper[pick, ][index],lwd=1.5,col="black")
+axis_fun(1,line=-0.5,x,x,xlabs,cex=0.75)
+axis_fun(2,ymaj,ymin,ymaj*100);box(lwd=1)
+mtext(side=1,line=2,"Model Parameters")
+mtext(side=2,line=2.5,"Percent of R\u00B2")
+#legend("topright",legend=c(paste0("R\u00B2 = ", round(rslt@R2,2),"\n metrics are normalized to sum 100%")),lty=NA,lwd=NA,col=NA,cex=0.75,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
+dev.off()
+#paste0("R\u00B2 = ", round(rslt@R2,2),"; metrics are normalized to sum 1.0")
+#rslt@R2.boot
+#bootstrapped R2
+#mean(rslt@R2.boot)
+#mean(rslt@R2.boot)+qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#upper 95%CI
+#mean(rslt@R2.boot)-qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#lower 95%CI
+
+ylim.val=c(0,1.05);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+#tiff(filename=paste0(plot.path,"S79_TPModel_relaimpo_v2.tiff"),width=3,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+par(family="serif",mar=c(1,3,1.5,1.75),oma=c(1,1,0.5,0.5));
+cols=wesanderson::wes_palette("Zissou1")#nationalparkcolors::park_palette("Everglades",5)
+x=barplot(t(rbind(rslt@lmg[index],rep(NA,5))),col=rev(cols), ylim =ylim.val,axes=F)
+text(x[1]+diff(x)/2,cumsum(rslt@lmg[index])-(cumsum(rslt@lmg[index])-c(0,cumsum(rslt@lmg[index])[1:4]))/2,xlabs,adj=0)
+axis_fun(2,ymaj,ymin,ymaj*100);box(lwd=1)
+mtext(side=2,line=2.5,"Percent of R\u00B2")
+dev.off()
 
 #tiff(filename=paste0(plot.path,"S79_TNModel_diag.tiff"),width=6,height=5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(2,3,1,0.5),oma=c(2,1,0.25,0.75));
