@@ -23,6 +23,7 @@ library(car)
 library(pedometrics)
 library(MASS)
 library(relaimpo)
+library(lmtest)
 
 #Paths
 wd="D:/Work/LOSOM_WQ"
@@ -161,191 +162,12 @@ cre.hydro.wq.mon$month=as.numeric(format(cre.hydro.wq.mon$monCY,"%m"))
 cre.hydro.wq.mon=merge(cre.hydro.wq.mon,data.frame(month=c(5:12,1:4),month.plot=1:12),"month",all.x=T)
 cre.hydro.wq.mon=cre.hydro.wq.mon[order(cre.hydro.wq.mon$monCY),]
 
+###
+###
+# Analysis ----------------------------------------------------------------
+###
+###
 
-#tiff(filename=paste0(plot.path,"S79_MonthlyTPTN.tiff"),width=4.75,height=6,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-#png(filename=paste0(plot.path,"png/S79_MonthlyTPTN.png"),width=4.75,height=6,units="in",res=200,type="windows",bg="white")
-par(family="serif",mar=c(1,3,0.75,0.75),oma=c(2,1,0.5,0.5));
-layout(matrix(1:2,2,1))
-
-ylim.val=c(0.05,0.35);ymaj=c(0.05,log.scale.fun(ylim.val,"major"),0.3);ymin=log.scale.fun(ylim.val,"minor")
-xlim.val=c(1,12);xmaj=1:12;xmaj.lab=c(5:12,1:4)
-plot(mean.TP~month.plot,cre.hydro.wq.mon,log="y",ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
-abline(h=ymaj,v=xmaj,lty=3,col="grey")
-with(cre.hydro.wq.mon,points(month.plot,mean.TP,pch=21,bg=adjustcolor("dodgerblue1",0.25),col="dodgerblue1",lwd=0.1,cex=1.25))
-k=predict(loess(mean.TP~month.plot,cre.hydro.wq.mon),data.frame(month.plot=seq(1,12,length.out = 24)),se=T)
-lines(seq(1,12,length.out = 24),k$fit,lwd=2,col="red")
-lines(seq(1,12,length.out = 24),k$fit - qt(0.975,k$df)*k$se, lty=2,lwd=1,col="red")
-lines(seq(1,12,length.out = 24),k$fit + qt(0.975,k$df)*k$se, lty=2,lwd=1,col="red")
-axis_fun(1,line=-0.5,xmaj,xmaj,NA)
-axis_fun(2,ymaj,ymin,format(ymaj*1000));box(lwd=1)
-mtext(side=3,"S-79")
-
-mtext(side=2,line=2.5,"Total Phosphorus (\u03BCg L\u207B\u00B9)")
-legend("topright",c("Monthly Mean","LOESS \u00B1 95% CI"),
-       pch=c(21,NA),
-       lty=c(NA,1),lwd=c(0.01,1),
-       col=c("dodgerblue1","red"),
-       pt.bg=c(adjustcolor("dodgerblue1",0.25),NA),
-       pt.cex=1,ncol=1,cex=0.8,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
-
-ylim.val=c(0.5,3);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)#log.scale.fun(ylim.val,"major");ymin=log.scale.fun(ylim.val,"minor")
-plot(mean.TN~month.plot,cre.hydro.wq.mon,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
-abline(h=ymaj,v=xmaj,lty=3,col="grey")
-with(cre.hydro.wq.mon,points(month.plot,mean.TN,pch=21,bg=adjustcolor("dodgerblue1",0.25),col="dodgerblue1",lwd=0.1,cex=1.25))
-k=predict(loess(mean.TN~month.plot,cre.hydro.wq.mon),data.frame(month.plot=seq(1,12,length.out = 24)),se=T)
-lines(seq(1,12,length.out = 24),k$fit,lwd=2,col="red")
-lines(seq(1,12,length.out = 24),k$fit - qt(0.975,k$df)*k$se, lty=2,lwd=1,col="red")
-lines(seq(1,12,length.out = 24),k$fit + qt(0.975,k$df)*k$se, lty=2,lwd=1,col="red")
-axis_fun(1,line=-0.5,xmaj,xmaj,xmaj.lab)
-axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
-mtext(side=1,line=1.75,"Month")
-mtext(side=2,line=2.5,"Total Nitrogen (mg L\u207B\u00B9)")
-dev.off()
-
-# Autocorrelation
-#TP
-acf(wq.dat.xtab.mon$mean.TP)
-pacf(wq.dat.xtab.mon$mean.TP)
-#test=data.frame(pacf=ar.yw(wq.dat.xtab.mon$mean.TP,floor(10 * (log10(length(wq.dat.xtab.mon$mean.TP)))))$partialacf)
-#points(1:22,test$pacf)
-# 95% confidence (i.e. dashed blue lines) qnorm((1+0.95)/2)/sqrt(n.used)
-
-acf.dat.rslt=data.frame()
-for(h in 0:24){
-  #demean
-  #x=sweep(as.matrix(wq.dat.xtab.mon$mean.TP),2,colMeans(as.matrix(wq.dat.xtab.mon$mean.TP),na.rm=T))
-  lagged=lag(as.zoo(wq.dat.xtab.mon$mean.TP),-h,na.pad=T)
-  tmp.dat=as.zoo(wq.dat.xtab.mon$mean.TP)
-  stat=with(data.frame(lag=lagged,dat=tmp.dat),cor.test(lag,dat,method="pearson"))
-  acf.dat.rslt=rbind(acf.dat.rslt,data.frame(lag=h,estimate=as.numeric(stat$estimate),pval=stat$p.value))
-}
-acf.dat.rslt
-acf(wq.dat.xtab.mon$mean.TP)
-points(acf.dat.rslt$lag,acf.dat.rslt$estimate)
-
-tseries::adf.test(wq.dat.xtab.mon$mean.TP)
-#the null hypothesis is reject and accept alternative(i.e. stationary)
-#https://nwfsc-timeseries.github.io/atsa-labs/sec-boxjenkins-aug-dickey-fuller.html
-#http://rstudio-pubs-static.s3.amazonaws.com/273431_12485645a6b743cf8e42731415b8003c.html
-#https://otexts.com/fpp2/
-
-ylim.val=c(-0.50,1.1);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=c(0,24);by.x=5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
-#tiff(filename=paste0(plot.path,"S79_TPACF.tiff"),width=5,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-#png(filename=paste0(plot.path,"png/S79_TPACF.png"),width=5,height=4,units="in",res=200,type="windows",bg="white")
-par(family="serif",mar=c(1,3,0.75,0.75),oma=c(2,1,0.5,0.5));
-plot(estimate~lag,acf.dat.rslt,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
-abline(h=ymaj,v=xmaj,lty=3,col="grey")
-abline(h=0)
-ci.val=qnorm((1+0.95)/2)/sqrt(length(wq.dat.xtab.mon$mean.TP))
-#abline(h=c(ci.val,-ci.val),lty=2,lwd=1.5,col="blue")
-polygon(c(-1,25,25,-1),c(ci.val,ci.val,-ci.val,-ci.val),col=adjustcolor("grey",0.5),border=0)
-with(acf.dat.rslt,segments(lag,0,lag,estimate,lwd=1.5,lty=2))
-with(acf.dat.rslt,points(lag,estimate,pch=21,bg=ifelse(pval<0.05,"indianred1","dodgerblue1"),lwd=0.01))
-axis_fun(1,line=-0.5,xmaj,xmin,xmaj)
-axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
-mtext(side=2,line=2.5,expression(paste("ACF ",italic("r")["Pearson"])))
-mtext(side=1,line=1.5,"Lag")
-legend("topright",legend=c("\u03C1 < 0.05","\u03C1 > 0.05","95% CI"),
-       pch=c(21,21,22),pt.bg=c("indianred1","dodgerblue1",adjustcolor("grey",0.5)),col=c("black","black",NA),
-       lty=NA,lwd=c(0.1,0.1,0),pt.cex=1.5,cex=0.7,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
-dev.off()
-
-ylim.val=c(0.05,0.35);ymaj=log.scale.fun(ylim.val,"major");ymin=log.scale.fun(ylim.val,"minor")#by.y=0.05;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=ylim.val;xmaj=log.scale.fun(xlim.val,"major");xmin=log.scale.fun(xlim.val,"minor")#by.x=0.05;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
-#tiff(filename=paste0(plot.path,"S79_lagplots.tiff"),width=7,height=2.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-#png(filename=paste0(plot.path,"png/S79_lagplots.png"),width=7,height=2.5,units="in",res=200,type="windows",bg="white")
-par(family="serif",mar=c(1,2,0.75,0.75),oma=c(3,1.5,0.5,0.5));
-layout(matrix(1:4,1,4))
-for(h in 0:3){
-  tmp.dat=data.frame(dat=as.zoo(wq.dat.xtab.mon$mean.TP),lag=lag(as.zoo(wq.dat.xtab.mon$mean.TP),-h,na.pad=T))
-  plot(dat~lag,tmp.dat,ylim=ylim.val,xlim=xlim.val,log="xy",type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
-  abline(h=ymaj,v=xmaj,lty=3,col="grey")
-  abline(0,1,lty=2)
-  with(tmp.dat,points(lag,dat,pch=21,bg=adjustcolor("grey",0.25),lwd=0.01,cex=1.25))
-  #LOESS model
-  x.val=seq(min(tmp.dat$lag,na.rm=T),max(tmp.dat$lag,na.rm=T),length.out=100)
-  k=predict(loess(dat~lag,tmp.dat),data.frame(lag=x.val),se=T)
-  lines(x.val,k$fit,lwd=2,col="red")
-  lines(x.val,k$fit - qt(0.975,k$df)*k$se, lty=2,lwd=1.25,col="red")
-  lines(x.val,k$fit + qt(0.975,k$df)*k$se, lty=2,lwd=1.25,col="red")
-  if(h==0){legend("topleft",legend="LOESS \u00B1 95% CI",lty=1,lwd=1,col="red",cex=0.75,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)}
-  if(h==0){axis_fun(2,ymaj,ymin,ymaj*1000,cex=1)}else{axis_fun(2,ymaj,ymin,NA)}
-  if(h==0){mtext(side=2,line=2,"TP (\u03BCg L\u207B\u00B9)",cex=1)}
-  axis_fun(1,line=-0.5,xmaj,xmin,xmaj*1000,cex=1);box(lwd=1)
-  mtext(side=3,line=0.2,paste0("Lag ",h),cex=0.75)
-}
-mtext(side=1,line=1,outer=T,"Lagged TP (\u03BCg L\u207B\u00B9)",cex=1)
-dev.off()
-
-#TN
-#Autocorrelation
-acf(subset(wq.dat.xtab.mon,is.na(mean.TN)==F)$mean.TN)
-pacf(subset(wq.dat.xtab.mon,is.na(mean.TN)==F)$mean.TN)
-
-acf.TN.dat.rslt=data.frame()
-for(h in 0:24){
-  #demean
-  #x=sweep(as.matrix(wq.dat.xtab.mon$mean.TP),2,colMeans(as.matrix(wq.dat.xtab.mon$mean.TP),na.rm=T))
-  lagged=lag(as.zoo(na.omit(wq.dat.xtab.mon$mean.TN)),-h,na.pad=T)
-  tmp.dat=as.zoo(na.omit(wq.dat.xtab.mon$mean.TN))
-  stat=with(data.frame(lag=lagged,dat=tmp.dat),cor.test(lag,dat,method="pearson"))
-  acf.TN.dat.rslt=rbind(acf.TN.dat.rslt,data.frame(lag=h,estimate=as.numeric(stat$estimate),pval=stat$p.value))
-}
-acf.TN.dat.rslt
-acf(na.omit(wq.dat.xtab.mon$mean.TN))
-points(acf.TN.dat.rslt$lag,acf.TN.dat.rslt$estimate)
-
-tseries::adf.test(na.omit(wq.dat.xtab.mon$mean.TN))
-
-ylim.val=c(-0.05,1.1);by.y=0.2;ymaj=seq(max(ylim.val[1],0),ylim.val[2],by.y);ymin=seq(max(ylim.val[1],0),ylim.val[2],by.y/2)
-xlim.val=c(0,24);by.x=5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
-#tiff(filename=paste0(plot.path,"S79_TNACF.tiff"),width=5,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-#png(filename=paste0(plot.path,"png/S79_TPACF.png"),width=5,height=4,units="in",res=200,type="windows",bg="white")
-par(family="serif",mar=c(1,3,0.75,0.75),oma=c(2,1,0.5,0.5));
-plot(estimate~lag,acf.TN.dat.rslt,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
-abline(h=ymaj,v=xmaj,lty=3,col="grey")
-abline(h=0)
-ci.val=qnorm((1+0.95)/2)/sqrt(length(na.omit(wq.dat.xtab.mon$mean.TN)))
-#abline(h=c(ci.val,-ci.val),lty=2,lwd=1.5,col="blue")
-polygon(c(-1,25,25,-1),c(ci.val,ci.val,-ci.val,-ci.val),col=adjustcolor("grey",0.5),border=0)
-with(acf.TN.dat.rslt,segments(lag,0,lag,estimate,lwd=1.5,lty=2))
-with(acf.TN.dat.rslt,points(lag,estimate,pch=21,bg=ifelse(pval<0.05,"indianred1","dodgerblue1"),lwd=0.01))
-axis_fun(1,line=-0.5,xmaj,xmin,xmaj)
-axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
-mtext(side=2,line=2.5,expression(paste("ACF ",italic("r")["Pearson"])))
-mtext(side=1,line=1.5,"Lag")
-legend("topright",legend=c("\u03C1 < 0.05","\u03C1 > 0.05","95% CI"),
-       pch=c(21,21,22),pt.bg=c("indianred1","dodgerblue1",adjustcolor("grey",0.5)),col=c("black","black",NA),
-       lty=NA,lwd=c(0.1,0.1,0),pt.cex=1.5,cex=0.7,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
-dev.off()
-
-ylim.val=c(0.75,3);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=ylim.val;by.x=0.5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
-#tiff(filename=paste0(plot.path,"S79_TN_lagplots.tiff"),width=7,height=2.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-#png(filename=paste0(plot.path,"png/S79_TN_lagplots.png"),width=7,height=2.5,units="in",res=200,type="windows",bg="white")
-par(family="serif",mar=c(1,2.5,0.75,0.75),oma=c(3,1.5,0.5,0.5));
-layout(matrix(1:4,1,4))
-for(h in 0:3){
-  tmp.dat=data.frame(dat=as.zoo(na.omit(wq.dat.xtab.mon$mean.TN)),lag=lag(as.zoo(na.omit(wq.dat.xtab.mon$mean.TN)),-h,na.pad=T))
-  plot(dat~lag,tmp.dat,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
-  abline(h=ymaj,v=xmaj,lty=3,col="grey")
-  abline(0,1,lty=2)
-  with(tmp.dat,points(lag,dat,pch=21,bg=adjustcolor("grey",0.25),lwd=0.01,cex=1.25))
-  #LOESS model
-  x.val=seq(min(tmp.dat$lag,na.rm=T),max(tmp.dat$lag,na.rm=T),length.out=100)
-  k=predict(loess(dat~lag,tmp.dat),data.frame(lag=x.val),se=T)
-  lines(x.val,k$fit,lwd=2,col="red")
-  lines(x.val,k$fit - qt(0.975,k$df)*k$se, lty=2,lwd=1.25,col="red")
-  lines(x.val,k$fit + qt(0.975,k$df)*k$se, lty=2,lwd=1.25,col="red")
-  if(h==0){legend("topleft",legend="LOESS \u00B1 95% CI",lty=1,lwd=1,col="red",cex=0.75,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)}
-  if(h==0){axis_fun(2,ymaj,ymin,ymaj,cex=1)}else{axis_fun(2,ymaj,ymin,NA)}
-  if(h==0){mtext(side=2,line=2.5,"TN (mg L\u207B\u00B9)",cex=1)}
-  axis_fun(1,line=-0.5,xmaj,xmin,xmaj,cex=1);box(lwd=1)
-  mtext(side=3,line=0.2,paste0("Lag ",h),cex=0.75)
-}
-mtext(side=1,line=1,outer=T,"Lagged TN (mg L\u207B\u00B9)",cex=1)
-dev.off()
 
 ## trend analysis
 wq.dat.xtab.mon$decWY=decimal.WY(wq.dat.xtab.mon$monCY)
@@ -391,7 +213,7 @@ plot(mean.TN~WY,wq.dat.xtab.WY,las=1,type="b")
 abline(with(subset(wq.dat.xtab.WY,is.na(mean.TN)==F&N.TP>=4),mblm(mean.TN~WY,repeated = T)),col="Red")
 
 
-#tiff(filename=paste0(plot.path,"S79_MonthlyTPTN_TS.tiff"),width=5,height=6,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+#tiff(filename=paste0(plot.path,"S79_timeseries_MonthlyTPTN.tiff"),width=5,height=6,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(1,3,0.75,0.75),oma=c(2,1,0.5,0.5));
 layout(matrix(1:2,2,1))
 ylim.val=c(0.05,0.4);ymaj=c(0.05,log.scale.fun(ylim.val,"major"),0.4);ymin=log.scale.fun(ylim.val,"minor")
@@ -435,79 +257,58 @@ mtext(side=1,line=1.75,"Date (Month - Year)")
 mtext(side=2,line=2.5,"Total Nitrogen (mg L\u207B\u00B9)")
 dev.off()
 
-#tiff(filename=paste0(plot.path,"S79_MonthlyTP_hist.tiff"),width=3,height=6.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-par(family="serif",mar=c(0.25,3,0.75,2),oma=c(4,1,0.5,0.5));
-layout(matrix(1:12,12,1))
+#tiff(filename=paste0(plot.path,"S79_bymonth_MonthlyTPTN.tiff"),width=4.75,height=6,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+#png(filename=paste0(plot.path,"png/S79_MonthlyTPTN.png"),width=4.75,height=6,units="in",res=200,type="windows",bg="white")
+par(family="serif",mar=c(1,3,0.75,0.75),oma=c(2,1,0.5,0.5));
+layout(matrix(1:2,2,1))
 
-xlim.val=c(0.06,0.35);by.x=0.05;xmaj=seq(min(0,xlim.val[1]),xlim.val[2],by.x);xmin=seq(min(0,xlim.val[1]),xlim.val[2],by.x/2)
-ylim.val=c(0,6);by.y=3;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-for(i in 1:12){
-  tmp.dat=subset(wq.dat.xtab.mon,month==i)$mean.TP
-  w=0.01;#width
-  startcat <- floor(min(tmp.dat,na.rm=TRUE)/w)*w
-  breaks.val <- seq(startcat,max(tmp.dat,na.rm=TRUE)+w,w)
-  hist(tmp.dat,main=NA,xlim=xlim.val,ylim=ylim.val,breaks=breaks.val,xlab=NA,ylab=NA,col="skyblue3",yaxs="i",axes=F)
-  if(i==12){axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj))}else(axis_fun(1,xmaj,xmin,NA))
-  axis_fun(2,ymaj,ymin,ymaj)
-  box(lwd=1)
-  mtext(month.abb[i],las=3,side=4)
-  if(i==12){mtext(side=1,line=2.5,"Total Phosphorus (\u03BCg L\u207B\u00B9)")}
-}
-mtext(side=2,line=-0.5,outer=T,"Frequency")
-dev.off()
+ylim.val=c(0.05,0.35);ymaj=c(0.05,log.scale.fun(ylim.val,"major"),0.3);ymin=log.scale.fun(ylim.val,"minor")
+xlim.val=c(1,12);xmaj=1:12;xmaj.lab=c(5:12,1:4)
+plot(mean.TP~month.plot,cre.hydro.wq.mon,log="y",ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
+abline(h=ymaj,v=xmaj,lty=3,col="grey")
+with(cre.hydro.wq.mon,points(month.plot,mean.TP,pch=21,bg=adjustcolor("dodgerblue1",0.25),col="dodgerblue1",lwd=0.1,cex=1.25))
+k=predict(loess(mean.TP~month.plot,cre.hydro.wq.mon),data.frame(month.plot=seq(1,12,length.out = 24)),se=T)
+lines(seq(1,12,length.out = 24),k$fit,lwd=2,col="red")
+lines(seq(1,12,length.out = 24),k$fit - qt(0.975,k$df)*k$se, lty=2,lwd=1,col="red")
+lines(seq(1,12,length.out = 24),k$fit + qt(0.975,k$df)*k$se, lty=2,lwd=1,col="red")
+axis_fun(1,line=-0.5,xmaj,xmaj,NA)
+axis_fun(2,ymaj,ymin,format(ymaj*1000));box(lwd=1)
+mtext(side=3,"S-79")
 
-#tiff(filename=paste0(plot.path,"S79_MonthlyTPWY.tiff"),width=3,height=6.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-par(family="serif",mar=c(0.25,3.5,0.75,1.75),oma=c(4,1,0.5,0.5));
-layout(matrix(1:12,12,1))
+mtext(side=2,line=2.5,"Total Phosphorus (\u03BCg L\u207B\u00B9)")
+legend("topright",c("Monthly Mean","LOESS \u00B1 95% CI"),
+       pch=c(21,NA),
+       lty=c(NA,1),lwd=c(0.01,1),
+       col=c("dodgerblue1","red"),
+       pt.bg=c(adjustcolor("dodgerblue1",0.25),NA),
+       pt.cex=1,ncol=1,cex=0.8,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
 
-xlim.val=c(1999,2019);by.x=5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
-ylim.val=c(0,0.35);by.y=0.15;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-for(i in 1:12){
-  tmp.dat=subset(wq.dat.xtab.mon2,month==i)
-  plot(mean.TP~WY,tmp.dat,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
-  abline(h=ymaj,v=xmaj,lty=3,col="grey")
-  #with(tmp.dat,points(WY,mean.TP,pch=21,bg="skyblue2",lwd=0.1,cex=1.25))
-  with(tmp.dat,pt_line(WY,mean.TP,1,"skyblue2",1.5,21,"skyblue2",pt.lwd=0.1,cex=1.1))
-  if(i==12){axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj))}else(axis_fun(1,xmaj,xmin,NA))
-  axis_fun(2,ymaj,ymin,format(ymaj*1000))
-  box(lwd=1)
-  mtext(month.abb[i],las=3,side=4,cex=0.9,line=0.25)
-  if(i==12){mtext(side=1,line=2.5,"Water Year")}
-}
-mtext(side=2,line=-0.5,outer=T,"Total Phosphorus (\u03BCg L\u207B\u00B9)")
-dev.off()
-
-#tiff(filename=paste0(plot.path,"S79_MonthlyTNWY.tiff"),width=3,height=6.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-par(family="serif",mar=c(0.25,3.5,0.75,1.75),oma=c(4,1,0.5,0.5));
-layout(matrix(1:12,12,1))
-
-xlim.val=c(1999,2019);by.x=5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
-ylim.val=c(0,3);by.y=1.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-for(i in 1:12){
-  tmp.dat=subset(wq.dat.xtab.mon2,month==i)
-  plot(mean.TN~WY,tmp.dat,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
-  abline(h=ymaj,v=xmaj,lty=3,col="grey")
-  #with(tmp.dat,points(WY,mean.TP,pch=21,bg="skyblue2",lwd=0.1,cex=1.25))
-  with(tmp.dat,pt_line(WY,mean.TN,1,"skyblue2",1.5,21,"skyblue2",pt.lwd=0.1,cex=1.1))
-  if(i==12){axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj))}else(axis_fun(1,xmaj,xmin,NA))
-  axis_fun(2,ymaj,ymin,format(ymaj))
-  box(lwd=1)
-  mtext(month.abb[i],las=3,side=4,cex=0.9,line=0.25)
-  if(i==12){mtext(side=1,line=2.5,"Water Year")}
-}
-mtext(side=2,line=-0.5,outer=T,"Total Nitrogen (mg L\u207B\u00B9)")
+ylim.val=c(0.5,3);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)#log.scale.fun(ylim.val,"major");ymin=log.scale.fun(ylim.val,"minor")
+plot(mean.TN~month.plot,cre.hydro.wq.mon,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
+abline(h=ymaj,v=xmaj,lty=3,col="grey")
+with(cre.hydro.wq.mon,points(month.plot,mean.TN,pch=21,bg=adjustcolor("dodgerblue1",0.25),col="dodgerblue1",lwd=0.1,cex=1.25))
+k=predict(loess(mean.TN~month.plot,cre.hydro.wq.mon),data.frame(month.plot=seq(1,12,length.out = 24)),se=T)
+lines(seq(1,12,length.out = 24),k$fit,lwd=2,col="red")
+lines(seq(1,12,length.out = 24),k$fit - qt(0.975,k$df)*k$se, lty=2,lwd=1,col="red")
+lines(seq(1,12,length.out = 24),k$fit + qt(0.975,k$df)*k$se, lty=2,lwd=1,col="red")
+axis_fun(1,line=-0.5,xmaj,xmaj,xmaj.lab)
+axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
+mtext(side=1,line=1.75,"Month")
+mtext(side=2,line=2.5,"Total Nitrogen (mg L\u207B\u00B9)")
 dev.off()
 
 
 
-# Model Development -------------------------------------------------------
+
+# TP Model Development -------------------------------------------------------
 ###
 ## TP Model
 #vars=c("mean.TP","grad","C43Basin","S78","S79","S77","basin.q.ratio","hydro.season")
-vars=c("mean.TP","grad","C43Basin","S77","basin.q.ratio","hydro.season")
+vars=c("mean.TP","grad","C43Basin","S77","S78","basin.q.ratio","S79_H","S235_T")
 S79.TP.mod=lm(log(mean.TP)~.,na.omit(cre.hydro.wq.mon[,vars]))
-layout(matrix(1:4,2,2));plot(S79.TP.mod)
+layout(matrix(1:6,2,3));plot(S79.TP.mod)
 shapiro.test(residuals(S79.TP.mod));hist(residuals(S79.TP.mod))
+acf(S79.TP.mod$residuals)
 vif(S79.TP.mod)
 summary(S79.TP.mod)
 
@@ -517,7 +318,24 @@ S79.TP.mod.sw=stepAIC(S79.TP.mod,direction="both",trace=F)
 S79.TP.mod.sw$anova
 summary(S79.TP.mod.sw)
 
-#S79.TP.mod=lm(formula(S79.TP.mod.sw),na.omit(cre.hydro.wq.mon[,vars]))
+formula(S79.TP.mod.sw)
+S79.TP.mod=lm(formula(S79.TP.mod.sw),na.omit(cre.hydro.wq.mon[,vars]))
+layout(matrix(1:6,2,3));plot(S79.TP.mod)
+shapiro.test(residuals(S79.TP.mod));hist(residuals(S79.TP.mod))
+acf(S79.TP.mod$residuals)
+vif(S79.TP.mod)
+
+forecast::checkresiduals(S79.TP.mod)
+freq=frequency(S79.TP.mod$residuals)
+
+df=as.numeric(summary(S79.TP.mod)$fstatistic[2])
+#From forecast::checkresiduals( ) code to determine lag distance for BG test
+lag <- ifelse(freq > 1, 2 * freq, 10)
+lag <- min(lag, round(length(S79.TP.mod$residuals)/5))
+lag <- max(df+3, lag)
+lag
+lmtest::bgtest(S79.TP.mod,order=lag)
+#significantly autocrrelated up to 10-lag distances
 
 #resid.order=sort(as.numeric(row.names(data.frame(S79.TP.mod$residuals))))
 #resid.val=data.frame(S79.TP.mod$residuals)[order(as.numeric(row.names(data.frame(S79.TP.mod$residuals)))),]
@@ -536,6 +354,15 @@ for(h in 0:24){
 acf.TPMod.rslt
 points(acf.TPMod.rslt$lag,acf.TPMod.rslt$estimate)
 
+pacf(S79.TP.mod$residuals,lag=25)
+#pacf.values=data.frame(pacf=ar.yw(S79.TP.mod$residuals,floor(10 * (log10(length(S79.TP.mod$residuals)))))$partialacf)
+pacf.values=data.frame(pacf=ar.yw(S79.TP.mod$residuals,order.max=24)$partialacf)
+pacf.values$lag=1:(nrow(pacf.values))
+pacf.values$sig=abs(pacf.values$pacf)>=qnorm((1 + 0.95)/2)/sqrt(length(S79.TP.mod$residuals))
+
+with(pacf.values,points(lag,pacf,pch=21,bg=ifelse(sig==T,"red","blue")))
+#ci <- qnorm((1 + 0.95)/2)/sqrt(length(S79.TP.mod$residuals))
+
 ylim.val=c(-0.25,1.1);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
 xlim.val=c(0,24);by.x=5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
 #tiff(filename=paste0(plot.path,"S79_TPModResid_ACF.tiff"),width=5,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
@@ -543,7 +370,7 @@ par(family="serif",mar=c(1,3,0.75,0.75),oma=c(2,1,0.5,0.5));
 plot(estimate~lag,acf.TPMod.rslt,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
 abline(h=0)
-ci.val=qnorm((1+0.95)/2)/sqrt(length(wq.dat.xtab.mon$mean.TP))
+ci.val=qnorm((1+0.95)/2)/sqrt(length(S79.TP.mod$residuals))
 #abline(h=c(ci.val,-ci.val),lty=2,lwd=1.5,col="blue")
 polygon(c(-1,25,25,-1),c(ci.val,ci.val,-ci.val,-ci.val),col=adjustcolor("grey",0.5),border=0)
 with(acf.TPMod.rslt,segments(lag,0,lag,estimate,lwd=1.5,lty=2))
@@ -557,51 +384,28 @@ legend("topright",legend=c("\u03C1 < 0.05","\u03C1 > 0.05","95% CI"),
        lty=NA,lwd=c(0.1,0.1,0),pt.cex=1.5,cex=0.7,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
 dev.off()
 
-ylim.val=c(-0.8,0.8);by.y=0.4;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=ylim.val;xmaj=ymaj;xmin=ymin
-#tiff(filename=paste0(plot.path,"S79_TPMod_lagplots.tiff"),width=7,height=2.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-par(family="serif",mar=c(1,2,0.75,0.75),oma=c(3,1.5,0.5,0.5));
-layout(matrix(1:4,1,4))
-for(h in 0:3){
-  tmp.dat=data.frame(dat=as.zoo(resid.val),lag=lag(as.zoo(resid.val),-h,na.pad=T))
-  plot(dat~lag,tmp.dat,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
-  abline(h=ymaj,v=xmaj,lty=3,col="grey")
-  abline(0,1,lty=2)
-  with(tmp.dat,points(lag,dat,pch=21,bg=adjustcolor("grey",0.25),lwd=0.01,cex=1.25))
-  #Linear Model if peason correlation is used
-    x.val=seq(min(tmp.dat$lag,na.rm=T),max(tmp.dat$lag,na.rm=T),length.out=100)
-    k=predict(lm(dat~lag,tmp.dat),data.frame(lag=x.val),interval="confidence")
-    lines(x.val,k[,1],lwd=2,col="red")
-    lines(x.val,k[,2],lwd=1.25,lty=2,col="red")
-    lines(x.val,k[,3],lwd=1.25,lty=2,col="red")
-  #LOESS model
-  #x.val=seq(min(tmp.dat$lag,na.rm=T),max(tmp.dat$lag,na.rm=T),length.out=100)
-  #k=predict(loess(dat~lag,tmp.dat),data.frame(lag=x.val),se=T)
-  #lines(x.val,k$fit,lwd=2,col="red")
-  #lines(x.val,k$fit - qt(0.975,k$df)*k$se, lty=2,lwd=1.25,col="red")
-  #lines(x.val,k$fit + qt(0.975,k$df)*k$se, lty=2,lwd=1.25,col="red")
-  if(h==0){legend("topleft",legend="LOESS \u00B1 95% CI",lty=1,lwd=1,col="red",cex=0.75,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)}
-  if(h==0){axis_fun(2,ymaj,ymin,format(ymaj),cex=1)}else{axis_fun(2,ymaj,ymin,NA)}
-  if(h==0){mtext(side=2,line=2,"TP Model Residuals",cex=1)}
-  axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj),cex=1);box(lwd=1)
-  mtext(side=3,line=0.2,paste0("Lag ",h),cex=0.75)
-  
-  stat=cor.test(tmp.dat$lag,tmp.dat$dat)
-  est.val=round(as.numeric(stat$estimate),2)
-  pval.val=ifelse(stat$p.value<0.01,"< 0.01",paste0(" = ",round(stat$p.value,2),digits=2))
-  text.val=as.expression(paste("r"["Pearson"]," = ",est.val,"; \u03C1  = ",pval.val,sep=""))
-  text.val=bquote(paste(r[Pearson]==.(est.val)~"; ",rho~.(pval.val)))
-  legend("bottomright",legend=text.val,lty=NA,lwd=NA,col=NA,cex=0.75,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
-  
-}
-mtext(side=1,line=1,outer=T,"Lagged TP Model Residuals",cex=1)
+ylim.val=c(-0.25,0.5);by.y=0.25;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+xlim.val=c(0,24);by.x=5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
+#tiff(filename=paste0(plot.path,"S79_TPModResid_PACF.tiff"),width=5,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+par(family="serif",mar=c(1,3,0.75,0.75),oma=c(2,1,0.5,0.5));
+plot(pacf~lag,pacf.values,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
+abline(h=ymaj,v=xmaj,lty=3,col="grey")
+abline(h=0)
+ci.val=qnorm((1+0.95)/2)/sqrt(length(S79.TP.mod$residuals))
+#abline(h=c(ci.val,-ci.val),lty=2,lwd=1.5,col="blue")
+polygon(c(-1,25,25,-1),c(ci.val,ci.val,-ci.val,-ci.val),col=adjustcolor("grey",0.5),border=0)
+with(pacf.values,segments(lag,0,lag,pacf,lwd=1.5,lty=2))
+with(pacf.values,points(lag,pacf,pch=21,bg=ifelse(sig==T,"indianred1","dodgerblue1"),lwd=0.01))
+axis_fun(1,line=-0.5,xmaj,xmin,xmaj)
+axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
+mtext(side=2,line=2.5,"PACF")
+mtext(side=1,line=1.5,"Lag")
+legend("topright",legend=c("\u03C1 < 0.05","\u03C1 > 0.05","95% CI"),
+       pch=c(21,21,22),pt.bg=c("indianred1","dodgerblue1",adjustcolor("grey",0.5)),col=c("black","black",NA),
+       lty=NA,lwd=c(0.1,0.1,0),pt.cex=1.5,cex=0.7,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
 dev.off()
 
 
-
-library(lmtest)
-dwtest(formula(S79.TP.mod.sw),data=na.omit(cre.hydro.wq.mon[,vars]),alternative="two.sided")
-bgtest(formula(S79.TP.mod.sw),data=na.omit(cre.hydro.wq.mon[,vars]),type="F")
 
 # Calculate Relative Importance for Each Predictor
 # Bootstrap Measures of Relative Importance (1000 samples)
@@ -613,9 +417,9 @@ rslt=booteval.relimp(boot,sort=TRUE)
 pick=which.max(rslt@level)
 index <- sort(rslt@lmg, decreasing = T, index = T)$ix
 xnames=rslt@namen[2:((length(rslt@namen) - 1) + 1)][index];xnames
-xlabs=c("Season","Basin Ratio",expression(paste("Q"["C43Basin"])),"Gradient",expression(paste("Q"["S77"])))
-ylim.val=c(0,0.5);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-#tiff(filename=paste0(plot.path,"S79_TPModel_relaimpo.tiff"),width=4.25,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+xlabs=c("Basin Ratio",expression(paste("Q"["C43Basin"])),"Gradient",expression(paste("S79"["HW"])))
+ylim.val=c(0,0.6);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+#tiff(filename=paste0(plot.path,"S79_TPMod_relaimpo.tiff"),width=4.25,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(2,3,1.5,1.75),oma=c(2,1,0.5,0.5));
 
 x=barplot(rslt@lmg[index], ylim =ylim.val,axes=F,col="grey80")
@@ -634,18 +438,18 @@ dev.off()
 #mean(rslt@R2.boot)-qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#lower 95%CI
 
 ylim.val=c(0,1.05);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-#tiff(filename=paste0(plot.path,"S79_TPModel_relaimpo_v2.tiff"),width=3,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+#tiff(filename=paste0(plot.path,"S79_TPMod_relaimpo_v2.tiff"),width=3,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(1,3,1.5,1.75),oma=c(1,1,0.5,0.5));
 cols=wesanderson::wes_palette("Zissou1")#nationalparkcolors::park_palette("Everglades",5)
-x=barplot(t(rbind(rslt@lmg[index],rep(NA,5))),col=rev(cols), ylim =ylim.val,axes=F)
-text(x[1]+diff(x)/2,cumsum(rslt@lmg[index])-(cumsum(rslt@lmg[index])-c(0,cumsum(rslt@lmg[index])[1:4]))/2,xlabs,adj=0)
+x=barplot(t(rbind(rslt@lmg[index],rep(NA,4))),col=rev(cols), ylim =ylim.val,axes=F)
+text(x[1]+diff(x)/2,cumsum(rslt@lmg[index])-(cumsum(rslt@lmg[index])-c(0,cumsum(rslt@lmg[index])[1:3]))/2,xlabs,adj=0)
 axis_fun(2,ymaj,ymin,ymaj*100);box(lwd=1)
 mtext(side=2,line=2.5,"Percent of R\u00B2")
 dev.off()
 
 ##
 ##
-#tiff(filename=paste0(plot.path,"S79_TPModel_diag.tiff"),width=6,height=5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+#tiff(filename=paste0(plot.path,"S79_TPMod_diag.tiff"),width=6,height=5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 #png(filename=paste0(plot.path,"png/S79_TPModel_diag2.png"),width=6,height=5,units="in",res=200,type="windows",bg="white")
 par(family="serif",mar=c(2,3,1,0.5),oma=c(2,1,0.25,0.75));
 layout(matrix(1:4,2,2))
@@ -721,7 +525,7 @@ hist(residuals(S79.TP.mod))
 #axis_fun(1,line=-0.5,seq(-0.6,0.6,0.4),seq(-0.6,0.6,0.2),seq(-0.6,0.6,0.4))
 #dev.off()
 
-S79.TP.pred.mod=with(na.omit(cre.hydro.wq.mon[,vars]),exp(predict(S79.TP.mod,data.frame(grad=grad,C43Basin=C43Basin,S77=S77,basin.q.ratio=basin.q.ratio,hydro.season=hydro.season),interval="confidence")))
+S79.TP.pred.mod=with(na.omit(cre.hydro.wq.mon[,vars]),exp(predict(S79.TP.mod,data.frame(grad=grad,C43Basin=C43Basin,basin.q.ratio=basin.q.ratio,S79_H=S79_H),interval="confidence")))
 
 delta=na.omit(cre.hydro.wq.mon[,vars])$mean.TP-S79.TP.pred.mod[,1]
 mod.d=density(na.omit(as.numeric(S79.TP.pred.mod[,1])))
@@ -729,12 +533,12 @@ samp.d=density(cre.hydro.wq.mon$mean.TP)
 mod.compare=data.frame(dat=c(S79.TP.pred.mod[,1],cre.hydro.wq.mon$mean.TP),group=c(rep("mod",length(S79.TP.pred.mod[,1])),rep("obs",length(cre.hydro.wq.mon$mean.TP))))
 kruskal.test(dat~group,mod.compare)
 
-mod.ecdf=ecdf.v2(S79.TP.pred.mod[,1])
-dat.ecdf=ecdf.v2(cre.hydro.wq.mon$mean.TP)  
+mod.ecdf=ecdf_fun(S79.TP.pred.mod[,1])
+dat.ecdf=ecdf_fun(cre.hydro.wq.mon$mean.TP)  
 
 ylim.val=c(0,1);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
 xlim.val=c(0.05,0.35);by.x=0.05;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
-#tiff(filename=paste0(plot.path,"S79_TPecdf.tiff"),width=5,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+#tiff(filename=paste0(plot.path,"S79_TPcompare_ecdf.tiff"),width=5,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 #png(filename=paste0(plot.path,"png/S79_TPecdf.png"),width=5,height=3,units="in",res=200,type="windows",bg="white")
 par(family="serif",mar=c(1,3,0.5,0.5),oma=c(2,1,0.5,0.5));
 
@@ -847,11 +651,11 @@ dev.off()
 
 #tiff(filename=paste0(plot.path,"S79_TPParameters.tiff"),width=7,height=6,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(2,3.5,1.5,1.75),oma=c(2,1,0.5,0.5));
-layout(matrix(1:6,3,2))
+layout(matrix(1:4,2,2))
 ylim.val=c(0.05,0.35);ymaj=log.scale.fun(ylim.val,"major");ymin=log.scale.fun(ylim.val,"minor")
 xlim.val=c(5.5,8.6);by.x=1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
 
-plot(mean.TP~drad,cre.hydro.wq.mon,log="y",ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
+plot(mean.TP~grad,cre.hydro.wq.mon,log="y",ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
 with(cre.hydro.wq.mon,points(grad,mean.TP,pch=21,bg="indianred1",lwd=0.1))
 mod=lm(log(mean.TP)~grad,cre.hydro.wq.mon)
@@ -877,19 +681,6 @@ axis_fun(1,line=-0.5,xmaj,xmin,xmaj/1e4)
 axis_fun(2,ymaj,ymin,ymaj*1000);box(lwd=1)
 mtext(side=1,line=1.75,expression(paste("Q"["C43Basin"]," x10"^3,"; CFS")),cex=0.8)
 
-xlim.val=c(0,20e4);by.x=5e4;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
-plot(mean.TP~S77,cre.hydro.wq.mon,log="y",ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
-abline(h=ymaj,v=xmaj,lty=3,col="grey")
-with(cre.hydro.wq.mon,points(S77,mean.TP,pch=21,bg="indianred1",lwd=0.1))
-mod=lm(log(mean.TP)~S77,cre.hydro.wq.mon)
-x.val=seq(min(cre.hydro.wq.mon$S77,na.rm=T),max(cre.hydro.wq.mon$S77,na.rm=T),length.out=100)
-mod.pred=predict(mod,data.frame(S77=x.val),interval="confidence")
-shaded.range(x.val,exp(mod.pred[,2]),exp(mod.pred[,3]),"grey",lty=1)
-lines(x.val,exp(mod.pred[,1]),lty=2)
-axis_fun(1,line=-0.5,xmaj,xmin,xmaj/1e4)
-axis_fun(2,ymaj,ymin,ymaj*1000);box(lwd=1)
-mtext(side=1,line=2,expression(paste("Q"["S77"]," x10"^3,"; CFS")),cex=0.8)
-
 xlim.val=c(0,1);by.x=0.2;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
 plot(mean.TP~basin.q.ratio,cre.hydro.wq.mon,log="y",ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
@@ -903,50 +694,190 @@ axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj))
 axis_fun(2,ymaj,ymin,ymaj*1000);box(lwd=1)
 mtext(side=1,line=2,expression(paste("Q"["C43Basin"],": Q"["S79"])),cex=0.8)
 
-tmp=ddply(cre.hydro.wq.mon,"hydro.season",summarise,mean.val=mean(mean.TP,na.rm=T),SE.val=SE(mean.TP))
-ylim.val=c(0.05,0.35);ymaj=log.scale.fun(ylim.val,"major");ymin=log.scale.fun(ylim.val,"minor")
-#boxplot(mean.TP~hydro.season,cre.hydro.wq.mon)
-x=barplot(tmp$mean.val,ylim=ylim.val,log="y",yaxt="n")
-with(tmp,errorbars(x,mean.val,SE.val,col="black"))
-axis_fun(2,ymaj,ymin,ymaj*1000)
-axis_fun(1,x,x,c("Wet","Dry"));box(lwd=1)
-mtext(side=1,line=2,"Hydrologic Season",cex=0.8)
+xlim.val=c(2.75,3.75);by.x=0.5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
+plot(mean.TP~S79_H,cre.hydro.wq.mon,log="y",ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
+abline(h=ymaj,v=xmaj,lty=3,col="grey")
+with(cre.hydro.wq.mon,points(S79_H,mean.TP,pch=21,bg="indianred1",lwd=0.1))
+mod=lm(log(mean.TP)~S79_H,cre.hydro.wq.mon)
+x.val=seq(min(cre.hydro.wq.mon$S79_H,na.rm=T),max(cre.hydro.wq.mon$S79_H,na.rm=T),length.out=100)
+mod.pred=predict(mod,data.frame(S79_H=x.val),interval="confidence")
+shaded.range(x.val,exp(mod.pred[,2]),exp(mod.pred[,3]),"grey",lty=1)
+lines(x.val,exp(mod.pred[,1]),lty=2)
+axis_fun(1,line=-0.5,xmaj,xmin,xmaj)
+axis_fun(2,ymaj,ymin,ymaj*1000);box(lwd=1)
+#mtext(side=1,line=1.75,"Surface Water Gradient (S235TW - S79HW; Ft NGVD29)",cex=0.8)
+mtext(side=1,line=1.75,"S79 HW Stage (Ft NGVD29)",cex=0.8)
 mtext(side=2,line=-1,outer=T,"Total Phosphorus (\u03BCg L\u207B\u00B9)")
-
 dev.off()
 
-##
+
+# TP Load estimates -------------------------------------------------------
+## Observed load
+S79.mon.q=cre.hydro.wq.mon[,c("WY","monCY","S79","mean.TP")]
+S79.mon.q$TPLoad.kg=with(S79.mon.q,Load.Calc.kg(S79,mean.TP))
+
+## Modelled WQ - Load 
+S79.modTP=cbind(data.frame(monCY=na.omit(cre.hydro.wq.mon[,c("monCY",vars)])$monCY),data.frame(S79.TP.pred.mod))
+S79.mon.q=merge(S79.mon.q,S79.modTP,"monCY")
+S79.mon.q$mod.TPLoad.kg=with(S79.mon.q,Load.Calc.kg(S79,fit))
+
+S79.WY.TP.load=ddply(S79.mon.q,"WY",summarise,TFlow=sum(cfs.to.acftd(S79),na.rm=T),TLoad.kg=sum(TPLoad.kg,na.rm=T),mod.TLoad.kg=sum(mod.TPLoad.kg,na.rm=T))
+S79.WY.TP.load$obs.TP.FWM.ugL=with(S79.WY.TP.load,(TLoad.kg*1e9)/(TFlow*1233481.84))
+S79.WY.TP.load$mod.TP.FWM.ugL=with(S79.WY.TP.load,(mod.TLoad.kg*1e9)/(TFlow*1233481.84))
+
+plot(mod.TLoad.kg~TLoad.kg,S79.WY.TP.load)
+abline(0,1,lty=2)
+abline(lm(TLoad.kg~mod.TLoad.kg,S79.WY.TP.load),col="Red")
+
+boxplot(value~variable,melt(S79.WY.TP.load[,c("mod.TLoad.kg","TLoad.kg")]),outline=F)
+kruskal.test(value~variable,melt(S79.WY.TP.load[,c("mod.TLoad.kg","TLoad.kg")]))
+
+#tiff(filename=paste0(plot.path,"S79_TPLoadCompare.tiff"),width=6,height=4.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+par(family="serif",mar=c(2,3,1,0.5),oma=c(1.5,1.5,0.5,0.5));
+layout(matrix(c(1,1:3),2,2,byrow=T),heights=c(0.8,1),widths=c(1,0.8))
+
+ylim.val=c(0,6e5);by.y=2e5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+xlim.val=c(1999,2019);by.x=4;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
+plot(TLoad.kg~WY,S79.WY.TP.load,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
+abline(h=ymaj,v=xmaj,lty=3,col="grey80")
+with(S79.WY.TP.load,pt_line(WY,TLoad.kg,2,adjustcolor("dodgerblue1",0.25),2,21,adjustcolor("dodgerblue1",0.5),pt.lwd=0.1,cex=1.25))
+with(S79.WY.TP.load,pt_line(WY,mod.TLoad.kg,2,adjustcolor("indianred1",0.25),2,21,adjustcolor("indianred1",0.5),pt.lwd=0.1,cex=1.25))
+axis_fun(1,line=-0.5,xmaj,xmin,xmaj)
+axis_fun(2,ymaj,ymin,ymaj/1e5);box(lwd=1)
+mtext(side=1,line=1.5,"Water Year")
+mtext(side=2,line=1.5,"TP Load\n(x 10\u2075 kg Yr\u207B\u00B9)")
+legend("topleft",legend=c("Predicted","Observed"),
+       pch=c(21,21,22),pt.bg=adjustcolor(c("indianred1","dodgerblue1"),0.5),col=c("black","black",NA),
+       lty=NA,lwd=c(0.1,0.1,0),pt.cex=1.5,cex=0.7,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
+
+
+ylim.val=c(0,6e5);by.y=2e5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+xlim.val=ylim.val;xmaj=ymaj;xmin=ymin
+plot(mod.TLoad.kg~TLoad.kg,S79.WY.TP.load,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
+abline(h=ymaj,v=xmaj,lty=3,col="grey80")
+abline(0,1,lty=2)
+with(S79.WY.TP.load,points(TLoad.kg,mod.TLoad.kg,pch=21,bg=adjustcolor("olivedrab4",0.5),col=adjustcolor("olivedrab4",0.75),cex=1.25))
+axis_fun(1,line=-0.5,xmaj,xmin,xmaj/1e5)
+axis_fun(2,ymaj,ymin,ymaj/1e5);box(lwd=1)
+mtext(side=1,line=1.5,"Observed TP Load (x 10\u2075 kg Yr\u207B\u00B9)")
+mtext(side=2,line=1.5,"Predicted TP Load\n(x 10\u2075 kg Yr\u207B\u00B9)")
+
+ylim.val=c(0,4e5);by.y=1e5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+boxplot(value~variable,melt(S79.WY.TP.load[,c("mod.TLoad.kg","TLoad.kg")]),outline=F,axes=F,ylim=ylim.val,col=adjustcolor(c("indianred1","dodgerblue1"),0.5))
+axis_fun(2,ymaj,ymin,ymaj/1e5)
+axis_fun(1,line=-0.5,1:2,1:2,c("Predicted","Observed"));box(lwd=1)
+mtext(side=2,line=1.75,"TP Load (x 10\u2075 kg Yr\u207B\u00B9)")
+dev.off()
+
+
+# TN Model Development -------------------------------------------------------
+###
 ## TN Model
-monthly.TOC=ddply(subset(wq.dat.xtab,Station.ID=="S79"),c("month"),summarise,mmean.TOC=mean(TOC,na.rm=T),sd.TOC=sd(TOC,na.rm=T),N.TOC=N(TOC),median.TOC=median(TOC,na.rm=T))
-monthly.TOC$UCI.TOC=with(monthly.TOC,mmean.TOC+(sd.TOC*abs(qt(1-0.95,N.TOC-1))))
-monthly.TOC$LCI.TOC=with(monthly.TOC,mmean.TOC-(sd.TOC*abs(qt(1-0.95,N.TOC-1))))
-
-plot(mean.TOC~month,monthly.TOC,ylim=c(10,25))
-points(monthly.TOC$month,monthly.TOC$UCI,pch="*",col="red",cex=1.25)
-points(monthly.TOC$month,monthly.TOC$LCI,pch="*",col="red",cex=1.25)
-test=merge(cre.hydro.wq.mon,monthly.TOC[,c("month","mmean.TOC","UCI.TOC","LCI.TOC")],"month")
-
 #vars=c("mean.TP","grad","C43Basin","S78","S79","S77","basin.q.ratio","hydro.season")
-#vars=c("mean.TN","grad","C43Basin","S77","basin.q.ratio","hydro.season","S78Qfreq")
-vars=c("mean.TN","grad","C43Basin","S77","basin.q.ratio","hydro.season","mmean.TOC","UCI.TOC","LCI.TOC")#,"mean.TOC","mean.TP")
-S79.TN.mod=lm((1/mean.TN)~
-                .,na.omit(test[,vars]))
-layout(matrix(1:4,2,2));plot(S79.TN.mod)
+vars=c("mean.TN","grad","C43Basin","S77","S78","basin.q.ratio","S79_H","S235_T")
+S79.TN.mod=lm((1/mean.TN)~.,na.omit(cre.hydro.wq.mon[,vars]))
+layout(matrix(1:6,2,3));plot(S79.TN.mod)
 shapiro.test(residuals(S79.TN.mod));hist(residuals(S79.TN.mod))
+acf(S79.TN.mod$residuals)
 vif(S79.TN.mod)
 summary(S79.TN.mod)
 
+dev.off()
 #AIC model
 S79.TN.mod.sw=stepAIC(S79.TN.mod,direction="both",trace=F)
 S79.TN.mod.sw$anova
 summary(S79.TN.mod.sw)
-layout(matrix(1:4,2,2));plot(S79.TN.mod.sw)
-shapiro.test(residuals(S79.TN.mod.sw));
 vif(S79.TN.mod.sw)
 
-S79.TN.mod=lm(formula(S79.TN.mod.sw),na.omit(test[,vars]))
+formula(S79.TN.mod.sw)
+S79.TN.mod=lm(formula(S79.TN.mod.sw),na.omit(cre.hydro.wq.mon[,vars]))
+layout(matrix(1:6,2,3));plot(S79.TN.mod)
+shapiro.test(residuals(S79.TN.mod));hist(residuals(S79.TN.mod))
 acf(S79.TN.mod$residuals)
-dwtest(formula(S79.TN.mod),data=na.omit(test[,vars]),alternative="less")
+pacf(S79.TN.mod$residuals)
+vif(S79.TN.mod)
+summary(S79.TN.mod)
+
+forecast::checkresiduals(S79.TN.mod)
+freq=frequency(S79.TN.mod$residuals)
+
+df=as.numeric(summary(S79.TN.mod)$fstatistic[2])
+#From forecast::checkresiduals( ) code to determine lag distance for BG test
+lag <- ifelse(freq > 1, 2 * freq, 10)
+lag <- min(lag, round(length(S79.TN.mod$residuals)/5))
+lag <- max(df+3, lag)
+lag
+lmtest::bgtest(S79.TN.mod,order=lag)
+#significantly autocrrelated up to 10-lag distances
+
+#resid.order=sort(as.numeric(row.names(data.frame(S79.TN.mod$residuals))))
+#resid.val=data.frame(S79.TN.mod$residuals)[order(as.numeric(row.names(data.frame(S79.TN.mod$residuals)))),]
+resid.val=S79.TN.mod$residuals
+acf(resid.val)
+
+acf.TNMod.rslt=data.frame()
+for(h in 0:24){
+  #demean
+  #x=sweep(as.matrix(wq.dat.xtab.mon$mean.TN),2,colMeans(as.matrix(wq.dat.xtab.mon$mean.TN),na.rm=T))
+  lagged=lag(as.zoo(resid.val),-h,na.pad=T)
+  tmp.dat=as.zoo(resid.val)
+  stat=with(data.frame(lag=lagged,dat=tmp.dat),cor.test(lag,dat,method="pearson"))
+  acf.TNMod.rslt=rbind(acf.TNMod.rslt,data.frame(lag=h,estimate=as.numeric(stat$estimate),pval=stat$p.value))
+}
+acf.TNMod.rslt
+points(acf.TNMod.rslt$lag,acf.TNMod.rslt$estimate)
+
+pacf(S79.TN.mod$residuals,lag=25)
+#pacf.values=data.frame(pacf=ar.yw(S79.TN.mod$residuals,floor(10 * (log10(length(S79.TN.mod$residuals)))))$partialacf)
+pacf.values=data.frame(pacf=ar.yw(S79.TN.mod$residuals,order.max=24)$partialacf)
+pacf.values$lag=1:(nrow(pacf.values))
+pacf.values$sig=abs(pacf.values$pacf)>=qnorm((1 + 0.95)/2)/sqrt(length(S79.TN.mod$residuals))
+
+with(pacf.values,points(lag,pacf,pch=21,bg=ifelse(sig==T,"red","blue")))
+#ci <- qnorm((1 + 0.95)/2)/sqrt(length(S79.TN.mod$residuals))
+
+ylim.val=c(-0.25,1.1);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+xlim.val=c(0,24);by.x=5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
+#tiff(filename=paste0(plot.path,"S79_TNModResid_ACF.tiff"),width=5,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+par(family="serif",mar=c(1,3,0.75,0.75),oma=c(2,1,0.5,0.5));
+plot(estimate~lag,acf.TNMod.rslt,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
+abline(h=ymaj,v=xmaj,lty=3,col="grey")
+abline(h=0)
+ci.val=qnorm((1+0.95)/2)/sqrt(length(S79.TN.mod$residuals))
+#abline(h=c(ci.val,-ci.val),lty=2,lwd=1.5,col="blue")
+polygon(c(-1,25,25,-1),c(ci.val,ci.val,-ci.val,-ci.val),col=adjustcolor("grey",0.5),border=0)
+with(acf.TNMod.rslt,segments(lag,0,lag,estimate,lwd=1.5,lty=2))
+with(acf.TNMod.rslt,points(lag,estimate,pch=21,bg=ifelse(pval<0.05,"indianred1","dodgerblue1"),lwd=0.01))
+axis_fun(1,line=-0.5,xmaj,xmin,xmaj)
+axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
+mtext(side=2,line=2.5,expression(paste("ACF ",italic("r")["Pearson"])))
+mtext(side=1,line=1.5,"Lag")
+legend("topright",legend=c("\u03C1 < 0.05","\u03C1 > 0.05","95% CI"),
+       pch=c(21,21,22),pt.bg=c("indianred1","dodgerblue1",adjustcolor("grey",0.5)),col=c("black","black",NA),
+       lty=NA,lwd=c(0.1,0.1,0),pt.cex=1.5,cex=0.7,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
+dev.off()
+
+ylim.val=c(-0.2,0.4);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+xlim.val=c(0,24);by.x=5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/by.x)
+#tiff(filename=paste0(plot.path,"S79_TNModResid_PACF.tiff"),width=5,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+par(family="serif",mar=c(1,3,0.75,0.75),oma=c(2,1,0.5,0.5));
+plot(pacf~lag,pacf.values,ylim=ylim.val,xlim=xlim.val,type="n",yaxs="i",axes=F,ylab=NA,xlab=NA)
+abline(h=ymaj,v=xmaj,lty=3,col="grey")
+abline(h=0)
+ci.val=qnorm((1+0.95)/2)/sqrt(length(S79.TN.mod$residuals))
+#abline(h=c(ci.val,-ci.val),lty=2,lwd=1.5,col="blue")
+polygon(c(-1,25,25,-1),c(ci.val,ci.val,-ci.val,-ci.val),col=adjustcolor("grey",0.5),border=0)
+with(pacf.values,segments(lag,0,lag,pacf,lwd=1.5,lty=2))
+with(pacf.values,points(lag,pacf,pch=21,bg=ifelse(sig==T,"indianred1","dodgerblue1"),lwd=0.01))
+axis_fun(1,line=-0.5,xmaj,xmin,xmaj)
+axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
+mtext(side=2,line=2.5,"PACF")
+mtext(side=1,line=1.5,"Lag")
+legend("topright",legend=c("\u03C1 < 0.05","\u03C1 > 0.05","95% CI"),
+       pch=c(21,21,22),pt.bg=c("indianred1","dodgerblue1",adjustcolor("grey",0.5)),col=c("black","black",NA),
+       lty=NA,lwd=c(0.1,0.1,0),pt.cex=1.5,cex=0.7,ncol=1,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
+dev.off()
+
 
 
 # Calculate Relative Importance for Each Predictor
@@ -959,10 +890,9 @@ rslt=booteval.relimp(boot,sort=TRUE)
 pick=which.max(rslt@level)
 index <- sort(rslt@lmg, decreasing = T, index = T)$ix
 xnames=rslt@namen[2:((length(rslt@namen) - 1) + 1)][index];xnames
-xlabs=c(expression(paste("Q"["C43Basin"])),"POR Monthly TOC","Gradient","Season","Basin Ratio",expression(paste("Q"["S77"])))
-#xlabs=c("Basin Ratio","Gradient",expression(paste("Q"["S78"]," Freq")))
-ylim.val=c(0,1);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-#tiff(filename=paste0(plot.path,"S79_TNModel_relaimpo.tiff"),width=4.25,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+xlabs=c(expression(paste("Q"["S78"])),expression(paste("S235"["TW"])),expression(paste("Q"["S77"])))
+ylim.val=c(0,0.6);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+#tiff(filename=paste0(plot.path,"S79_TNMod_relaimpo.tiff"),width=4.25,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(2,3,1.5,1.75),oma=c(2,1,0.5,0.5));
 
 x=barplot(rslt@lmg[index], ylim =ylim.val,axes=F,col="grey80")
@@ -981,104 +911,115 @@ dev.off()
 #mean(rslt@R2.boot)-qt(0.975,N(rslt@R2.boot))*sd(rslt@R2.boot);#lower 95%CI
 
 ylim.val=c(0,1.05);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-#tiff(filename=paste0(plot.path,"S79_TPModel_relaimpo_v2.tiff"),width=3,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+#tiff(filename=paste0(plot.path,"S79_TNMod_relaimpo_v2.tiff"),width=3,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(1,3,1.5,1.75),oma=c(1,1,0.5,0.5));
-cols=wesanderson::wes_palette("Zissou1")#nationalparkcolors::park_palette("Everglades",5)
-x=barplot(t(rbind(rslt@lmg[index],rep(NA,5))),col=rev(cols), ylim =ylim.val,axes=F)
-text(x[1]+diff(x)/2,cumsum(rslt@lmg[index])-(cumsum(rslt@lmg[index])-c(0,cumsum(rslt@lmg[index])[1:4]))/2,xlabs,adj=0)
+cols=wesanderson::wes_palette("Zissou1");#nationalparkcolors::park_palette("Everglades",5)
+x=barplot(t(rbind(rslt@lmg[index],rep(NA,3))),col=rev(cols), ylim =ylim.val,axes=F)
+text(x[1]+diff(x)/2,cumsum(rslt@lmg[index])-(cumsum(rslt@lmg[index])-c(0,cumsum(rslt@lmg[index])[1:2]))/2,xlabs,adj=0)
 axis_fun(2,ymaj,ymin,ymaj*100);box(lwd=1)
 mtext(side=2,line=2.5,"Percent of R\u00B2")
 dev.off()
 
-#tiff(filename=paste0(plot.path,"S79_TNModel_diag.tiff"),width=6,height=5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+##
+##
+##
+##
+#tiff(filename=paste0(plot.path,"S79_TNMod_diag.tiff"),width=6,height=5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
+#png(filename=paste0(plot.path,"png/S79_TNModel_diag2.png"),width=6,height=5,units="in",res=200,type="windows",bg="white")
 par(family="serif",mar=c(2,3,1,0.5),oma=c(2,1,0.25,0.75));
 layout(matrix(1:4,2,2))
 
-ylim.val=c(-0.3,0.3);by.y=0.4;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=c(0.5,0.9);by.x=0.1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
-plot(S79.TN.mod.sw$fitted.values,S79.TN.mod.sw$residuals,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
+cols="grey"#rainbow(length(S79.TN.mod$fitted.values))
+ylim.val=c(-0.3,0.3);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+xlim.val=c(0.50,0.9);by.x=0.1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
+plot(S79.TN.mod$fitted.values,S79.TN.mod$residuals,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey80")
 abline(h=0)
-with(S79.TN.mod.sw,points(fitted.values,residuals,pch=21,bg=adjustcolor("grey",0.5),col="grey",lwd=0.1,cex=1.25))
-fit.vals=S79.TN.mod.sw$fitted.values
-res.vals=S79.TN.mod.sw$residuals
+with(S79.TN.mod,points(fitted.values,residuals,pch=21,bg=adjustcolor(cols,0.5),col="grey",lwd=0.1,cex=1.25))
+fit.vals=S79.TN.mod$fitted.values
+res.vals=S79.TN.mod$residuals
 with(lowess(fit.vals,res.vals),lines(x,y,col="red",lwd=2))
 axis_fun(1,line=-0.5,xmaj,xmin,xmaj);axis_fun(2,ymaj,ymin,format(round(ymaj,2)));box(lwd=1)
 mtext(side=2,line=2.5,"Residuals")
 mtext(side=1,line=1.75,"Fitted Values")
 
+#cols=viridisLite::viridis(length(S79.TN.mod$fitted.values))
 ylim.val=c(-3,3);by.y=1;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
 xlim.val=c(-3,3);by.x=1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
-rstd=rstandard(S79.TN.mod.sw)
-qq.x=qq.function(S79.TN.mod.sw$residuals)
+rstd=rstandard(S79.TN.mod)
+qq.x=qq.function(S79.TN.mod$residuals)
 plot(rstd~qq.x,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey80")
-points(qq.x,rstd,pch=21,bg=adjustcolor("grey",0.5),col="grey",lwd=0.1,cex=1.25)
+points(qq.x,rstd,pch=21,bg=adjustcolor(cols,0.5),col="grey",lwd=0.1,cex=1.25)
 abline(0,1,lty=3)
 axis_fun(1,line=-0.5,xmaj,xmin,xmaj);axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
 mtext(side=2,line=2.5,"Standardized Residuals")
 mtext(side=1,line=1.75,"Theoretical Quantiles")
 
+#cols=wesanderson::wes_palette("Zissou1",length(S79.TN.mod$fitted.values),"continuous")
 ylim.val=c(0,2);by.y=1;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=c(0.5,0.9);by.x=0.1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
+xlim.val=c(0.50,0.9);by.x=0.1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
 plot(sqrt(abs(rstd))~fit.vals,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey80")
-points(fit.vals,sqrt(abs(rstd)),pch=21,bg=adjustcolor("grey",0.5),col="grey",lwd=0.1,cex=1.25)
+points(fit.vals,sqrt(abs(rstd)),pch=21,bg=adjustcolor(cols,0.5),col="grey",lwd=0.1,cex=1.25)
 with(lowess(fit.vals,sqrt(abs(rstd))),lines(x,y,col="red",lwd=2))
 axis_fun(1,line=-0.5,xmaj,xmin,xmaj);axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
 mtext(side=2,line=2,expression(sqrt("Standardized Residuals")))
 mtext(side=1,line=1.75,"Fitted Values")
 
-#plot(S79.TN.mod.sw,which=4)
-#plot(cooks.distance(S79.TN.mod.sw))
-#plot(S79.TN.mod.sw,which=5)
-
+#plot(S79.TN.mod,which=4)
+#plot(cooks.distance(S79.TN.mod))
+#plot(S79.TN.mod,which=5)
+#cols=viridisLite::magma(length(S79.TN.mod$fitted.values))
 ylim.val=c(-3,3);by.y=1;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=c(0,0.35);by.x=0.1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
-lev=hatvalues(S79.TN.mod.sw)
+xlim.val=c(0,0.30);by.x=0.1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
+lev=hatvalues(S79.TN.mod)
 plot(rstd~lev,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey80")
 abline(h=0)
-points(lev,rstd,pch=21,bg=adjustcolor("grey",0.5),col="grey",lwd=0.1,cex=1.25)
+points(lev,rstd,pch=21,bg=adjustcolor(cols,0.5),col="grey",lwd=0.1,cex=1.25)
 with(lowess(lev,rstd),lines(x,y,col="red",lwd=2))
-inf=lm.influence(S79.TN.mod.sw)
+inf=lm.influence(S79.TN.mod)
 hh=seq(min(range(inf)[1],range(inf)[2]/100),xlim.val[2]+(xlim.val[2]*0.5),length.out=101)
 hh=hh[hh>0]
 crit.cook=0.5
-cl.h=sqrt(crit.cook*length(coef(S79.TN.mod.sw))*(1-hh)/hh)
+cl.h=sqrt(crit.cook*length(coef(S79.TN.mod))*(1-hh)/hh)
 lines(hh,cl.h,lty=2,col=2)
 lines(hh,-cl.h,lty=2,col=2)
 crit.cook=1
-cl.h=sqrt(crit.cook*length(coef(S79.TN.mod.sw))*(1-hh)/hh)
+cl.h=sqrt(crit.cook*length(coef(S79.TN.mod))*(1-hh)/hh)
 lines(hh,cl.h,lty=2,col=2)
 lines(hh,-cl.h,lty=2,col=2)
-axis_fun(1,line=-0.5,xmaj,xmin,xmaj);axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
+axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj));axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
 mtext(side=2,line=2,"Standardized Residuals")
 mtext(side=1,line=1.75,"Leverage")
 dev.off()
 
-#S79.TN.pred.mod=with(na.omit(cre.hydro.wq.mon[,vars]),1/(predict(S79.TN.mod.sw,data.frame(grad=grad,C43Basin=C43Basin),interval="confidence")))
-S79.TN.pred.mod=with(na.omit(test[,vars]),1/(predict(S79.TN.mod.sw,data.frame(grad=grad,C43Basin=C43Basin,S77=S77,basin.q.ratio=basin.q.ratio,hydro.season=hydro.season,mmean.TOC=mmean.TOC),interval="confidence")))
+shapiro.test(residuals(S79.TN.mod))
+hist(residuals(S79.TN.mod))
+#hist(residuals(S79.TN.mod),xlab="Model Residuals",main=NA,col="grey",las=1,ylim=c(0,40),yaxs="i",xaxt="n");box(lwd=1)
+#mtext(side=2,line=2.5,"Frequency")
+#mtext(side=1,line=1.75,"Model Residuals")
+#axis_fun(1,line=-0.5,seq(-0.6,0.6,0.4),seq(-0.6,0.6,0.2),seq(-0.6,0.6,0.4))
+#dev.off()
 
+S79.TN.pred.mod=with(na.omit(cre.hydro.wq.mon[,vars]),1/(predict(S79.TN.mod,data.frame(S77=S77,S78=S78,S235_T=S235_T),interval="confidence")))
 
-delta=na.omit(test[,vars])$mean.TN-S79.TN.pred.mod[,1]
+delta=na.omit(cre.hydro.wq.mon[,vars])$mean.TN-S79.TN.pred.mod[,1]
 mod.d=density(na.omit(as.numeric(S79.TN.pred.mod[,1])))
-samp.d=density(na.omit(test[,vars])$mean.TN)
-mod.compare=data.frame(dat=c(S79.TN.pred.mod[,1],na.omit(test[,vars])$mean.TN),group=c(rep("mod",length(S79.TN.pred.mod[,1])),rep("obs",length(na.omit(test[,vars])$mean.TN))))
+samp.d=density(na.omit(cre.hydro.wq.mon[,vars])$mean.TN)
+mod.compare=data.frame(dat=c(S79.TN.pred.mod[,1],na.omit(cre.hydro.wq.mon[,vars])$mean.TN),group=c(rep("mod",length(S79.TN.pred.mod[,1])),rep("obs",length(na.omit(cre.hydro.wq.mon[,vars])$mean.TN))))
 kruskal.test(dat~group,mod.compare)
-boxplot(dat~group,mod.compare)
 
-
-mod.ecdf=ecdf.v2(S79.TN.pred.mod[,1])
-dat.ecdf=ecdf.v2(test$mean.TN)  
+mod.ecdf=ecdf_fun(S79.TN.pred.mod[,1])
+dat.ecdf=ecdf_fun(cre.hydro.wq.mon$mean.TN)  
 
 ylim.val=c(0,1);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
 xlim.val=c(1,3);by.x=0.5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
-#tiff(filename=paste0(plot.path,"S79_TNecdf.tiff"),width=5,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-#png(filename=paste0(plot.path,"png/S79_TNecdf.png"),width=5,height=3,units="in",res=200,type="windows",bg="white")
+#tiff(filename=paste0(plot.path,"S79_TNcompare_ecdf.tiff"),width=5,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(1,3,0.5,0.5),oma=c(2,1,0.5,0.5));
 
-plot(proportion~value,dat.ecdf,ylim=ylim.val,axes=F,ylab=NA,xlab=NA,type="n")
+plot(proportion~value,dat.ecdf,ylim=ylim.val,xlim=xlim.val,axes=F,ylab=NA,xlab=NA,type="n")
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
 with(mod.ecdf,shaded.range(value,lwr.CI,upr.CI,"indianred1",lty=0,col.adj=0.25))
 with(mod.ecdf,lines(value,proportion,lwd=2,col="indianred1"))
@@ -1097,12 +1038,7 @@ legend("bottomright",c("Observed (\u00B1 95% CI)","Modelled (\u00B1 95% CI)"),
        pt.cex=1.5,ncol=1,cex=0.75,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
 dev.off()
 
-
-
-
-
-
-ylim.val=c(0.75,2);by.y=0.25;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+ylim.val=c(1,2);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
 #tiff(filename=paste0(plot.path,"S79_TNModel_Obs.tiff"),width=3.5,height=3,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(1,3,1,0.5),oma=c(2,1,0.75,0.75));
 
@@ -1112,28 +1048,27 @@ axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
 mtext(side=2,line=2.5,"Total Nitrogen (mg L\u207B\u00B9)")
 dev.off()
 
-
 #tiff(filename=paste0(plot.path,"S79_TNModel_compare.tiff"),width=6,height=4,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(2,3,1,0.5),oma=c(2,1,0.75,0.75));
 layout(matrix(c(1,2,3,3),2,2,byrow=T))
 
-ylim.val=c(0.75,2.6);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=ylim.val;by.x=by.y;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
+ylim.val=c(1,3);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+xlim.val=ylim.val;xmaj=ymaj;xmin=ymin
 plot(mean.TN~S79.TN.pred.mod[,1],na.omit(cre.hydro.wq.mon[,vars]),ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
 with(na.omit(cre.hydro.wq.mon[,vars]),points(S79.TN.pred.mod[,1],mean.TN,pch=21,bg=adjustcolor("forestgreen",0.25),lwd=0.1,col="grey"))
 abline(0,1,lty=2)
-axis_fun(1,line=-0.5,xmaj,xmin,xmaj);axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
+axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj));axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
 mtext(side=1,line=1.5,"Modelled TN (mg L\u207B\u00B9)",cex=0.9)
 mtext(side=2,line=2.5,"Observed TN (mg L\u207B\u00B9)",cex=0.9)
 
-ylim.val=c(0,10);by.y=2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=c(0.75,2.6);by.x=0.5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
+ylim.val=c(0,6);by.y=3;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+xlim.val=c(1,2);by.x=0.5;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
 plot(mod.d,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA,main=NA,yaxs="i")
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
 polygon(mod.d,col=adjustcolor("indianred1",0.5),lwd=1,border="indianred1")
 polygon(samp.d,col=adjustcolor("dodgerblue1",0.5),lwd=1,border="dodgerblue1")
-axis_fun(1,line=-0.5,xmaj,xmin,xmaj);axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
+axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj));axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
 mtext(side=1,line=1.5,"TN (mg L\u207B\u00B9)",cex=0.9)
 mtext(side=2,line=2,"Density",cex=0.9)
 legend("topright",c("Observed","Modelled"),
@@ -1143,7 +1078,7 @@ legend("topright",c("Observed","Modelled"),
        pt.bg=adjustcolor(c("dodgerblue1","indianred1",0.25)),
        pt.cex=1.5,ncol=1,cex=0.9,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
 
-ylim.val=c(-0.5,1.25);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+ylim.val=c(-0.4,1);by.y=0.2;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
 xlim.val=date.fun(dates);xmaj=seq(xlim.val[1],xlim.val[2],"4 years");xmin=seq(xlim.val[1],xlim.val[2],"1 years")
 plot(mean.TN~monCY,na.omit(cre.hydro.wq.mon[,c("monCY",vars)]),ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
@@ -1156,33 +1091,31 @@ mtext(side=1,line=2,"Date (Month-Year)",cex=0.9)
 mtext(side=3,line=-0.8,cex=0.5,"Observed - Predicted")
 dev.off()
 
-ylim.val=c(0.75,2.75);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
+ylim.val=c(1,3);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
 xlim.val=date.fun(dates);xmaj=seq(xlim.val[1],xlim.val[2],"4 years");xmin=seq(xlim.val[1],xlim.val[2],"1 years")
 #tiff(filename=paste0(plot.path,"S79_TNModel.tiff"),width=6,height=3.5,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
-#png(filename=paste0(plot.path,"S79_TNModel.png"),width=6,height=3.5,units="in",res=200,type="windows",bg="white")
-par(family="serif",mar=c(2,2.5,0.25,0.5),oma=c(2,1.75,0.75,0.75));
+par(family="serif",mar=c(2,3,0.25,0.5),oma=c(2,1.75,0.75,0.75));
 
 plot(mean.TN~monCY,na.omit(cre.hydro.wq.mon[,c("monCY",vars)]),ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
-#with(cre.hydro.wq.mon,pt_line(monCY,S79.TP.pred.mod,2,adjustcolor("indianred1",0.5),1,21,adjustcolor("indianred1",0.5),cex=1.25))
-#shaded.range(cre.hydro.wq.mon$monCY,S79.TP.pred.mod[,2],S79.TP.pred.mod[,3],"indianred1",lty=1)
+#with(cre.hydro.wq.mon,pt_line(monCY,S79.TN.pred.mod,2,adjustcolor("indianred1",0.5),1,21,adjustcolor("indianred1",0.5),cex=1.25))
+#shaded.range(cre.hydro.wq.mon$monCY,S79.TN.pred.mod[,2],S79.TN.pred.mod[,3],"indianred1",lty=1)
 with(na.omit(cre.hydro.wq.mon[,c("monCY",vars)]),lines(monCY,S79.TN.pred.mod[,1],lty=1,col=adjustcolor("indianred1",0.5),lwd=2))
 with(na.omit(cre.hydro.wq.mon[,c("monCY",vars)]),lines(monCY,S79.TN.pred.mod[,2],lty=2,col=adjustcolor("indianred1",0.5),lwd=1))
 with(na.omit(cre.hydro.wq.mon[,c("monCY",vars)]),lines(monCY,S79.TN.pred.mod[,3],lty=2,col=adjustcolor("indianred1",0.5),lwd=1))
 with(na.omit(cre.hydro.wq.mon[,c("monCY",vars)]),pt_line(monCY,mean.TN,2,adjustcolor("dodgerblue1",0.5),1,21,adjustcolor("dodgerblue1",0.5),cex=1))
-
 axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj,"%m-%Y"))
-axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
-mtext(side=2,line=2.75,"Total Nitrogen (mg L\u207B\u00B9)")
+axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
+mtext(side=2,line=2.5,"Total Nitrogen (mg L\u207B\u00B9)")
 mtext(side=1,line=2,"Date (Month-Year)")
 
-legend("bottomleft",c("Observed","Modelled \u00B1 95% CI"),
+legend("topleft",c("Observed","Modelled \u00B1 95% CI"),
        pch=c(NA,NA),
        lty=c(2,1),lwd=c(1,1),
        col=adjustcolor(c("dodgerblue1","indianred1",0.5)),
        pt.bg=adjustcolor(c("dodgerblue1","indianred1",0.5)),
        pt.cex=1.5,ncol=2,cex=0.9,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5,text.col = "white")
-legend("bottomleft",c("Observed","Modelled \u00B1 95% CI"),
+legend("topleft",c("Observed","Modelled \u00B1 95% CI"),
        pch=c(21,NA),
        lty=c(NA,NA),lwd=c(0.1,1),
        col=adjustcolor(c("dodgerblue1","indianred1",0.5)),
@@ -1190,72 +1123,52 @@ legend("bottomleft",c("Observed","Modelled \u00B1 95% CI"),
        pt.cex=1.5,ncol=2,cex=0.9,bty="n",y.intersp=1,x.intersp=0.75,xpd=NA,xjust=0.5,yjust=0.5)
 dev.off()
 
+
 #tiff(filename=paste0(plot.path,"S79_TNParameters.tiff"),width=7,height=6,units="in",res=200,type="windows",compression=c("lzw"),bg="white")
 par(family="serif",mar=c(2,3.5,1.5,1.75),oma=c(2,1,0.5,0.5));
-layout(matrix(1:6,3,2))
-ylim.val=c(0.75,2.75);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
-xlim.val=c(5.5,8.6);by.x=1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
-
-plot(mean.TN~grad,cre.hydro.wq.mon,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
-abline(h=ymaj,v=xmaj,lty=3,col="grey")
-with(cre.hydro.wq.mon,points(grad,mean.TN,pch=21,bg="indianred1",lwd=0.1))
-mod=lm(log(mean.TN)~grad,cre.hydro.wq.mon)
-x.val=seq(min(cre.hydro.wq.mon$grad,na.rm=T),max(cre.hydro.wq.mon$grad,na.rm=T),length.out=100)
-mod.pred=predict(mod,data.frame(grad=x.val),interval="confidence")
-shaded.range(x.val,exp(mod.pred[,2]),exp(mod.pred[,3]),"grey",lty=1)
-lines(x.val,exp(mod.pred[,1]),lty=2)
-axis_fun(1,line=-0.5,xmaj,xmin,xmaj)
-axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
-#mtext(side=1,line=1.75,"Surface Water Gradient (S235TW - S79HW; Ft NGVD29)",cex=0.8)
-mtext(side=1,line=1.75,"Surface Water Gradient (Ft NGVD29)",cex=0.8)
-
-xlim.val=c(0,25e4);by.x=5e4;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
-plot(mean.TN~C43Basin,cre.hydro.wq.mon,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
-abline(h=ymaj,v=xmaj,lty=3,col="grey")
-with(cre.hydro.wq.mon,points(C43Basin,mean.TN,pch=21,bg="indianred1",lwd=0.1))
-mod=lm(log(mean.TN)~C43Basin,cre.hydro.wq.mon)
-x.val=seq(min(cre.hydro.wq.mon$C43Basin,na.rm=T),max(cre.hydro.wq.mon$C43Basin,na.rm=T),length.out=100)
-mod.pred=predict(mod,data.frame(C43Basin=x.val),interval="confidence")
-shaded.range(x.val,exp(mod.pred[,2]),exp(mod.pred[,3]),"grey",lty=1)
-lines(x.val,exp(mod.pred[,1]),lty=2)
-axis_fun(1,line=-0.5,xmaj,xmin,xmaj/1e4)
-axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
-mtext(side=1,line=1.75,expression(paste("Q"["C43Basin"]," x10"^3,"; CFS")),cex=0.8)
-
+layout(matrix(1:4,2,2))
+ylim.val=c(1,3);by.y=0.5;ymaj=seq(ylim.val[1],ylim.val[2],by.y);ymin=seq(ylim.val[1],ylim.val[2],by.y/2)
 xlim.val=c(0,20e4);by.x=5e4;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
+
 plot(mean.TN~S77,cre.hydro.wq.mon,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
 with(cre.hydro.wq.mon,points(S77,mean.TN,pch=21,bg="indianred1",lwd=0.1))
-mod=lm(log(mean.TN)~S77,cre.hydro.wq.mon)
+mod=lm((1/mean.TN)~S77,cre.hydro.wq.mon)
 x.val=seq(min(cre.hydro.wq.mon$S77,na.rm=T),max(cre.hydro.wq.mon$S77,na.rm=T),length.out=100)
 mod.pred=predict(mod,data.frame(S77=x.val),interval="confidence")
-shaded.range(x.val,exp(mod.pred[,2]),exp(mod.pred[,3]),"grey",lty=1)
-lines(x.val,exp(mod.pred[,1]),lty=2)
+shaded.range(x.val,1/(mod.pred[,2]),1/(mod.pred[,3]),"grey",lty=1)
+lines(x.val,1/(mod.pred[,1]),lty=2)
 axis_fun(1,line=-0.5,xmaj,xmin,xmaj/1e4)
-axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
-mtext(side=1,line=2,expression(paste("Q"["S77"]," x10"^3,"; CFS")),cex=0.8)
+axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
+#mtext(side=1,line=1.75,"Surface Water Gradient (S235TW - S79HW; Ft NGVD29)",cex=0.8)
+mtext(side=1,line=1.75,expression(paste("Q"["S77"]," x10"^4,"; CFS")),cex=0.8)
 
-xlim.val=c(0,1);by.x=0.2;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
-plot(mean.TN~basin.q.ratio,cre.hydro.wq.mon,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
+xlim.val=c(0,25e4);by.x=5e4;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
+plot(mean.TN~S78,cre.hydro.wq.mon,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
 abline(h=ymaj,v=xmaj,lty=3,col="grey")
-with(cre.hydro.wq.mon,points(basin.q.ratio,mean.TN,pch=21,bg="indianred1",lwd=0.1))
-mod=lm(log(mean.TN)~basin.q.ratio,cre.hydro.wq.mon)
-x.val=seq(min(cre.hydro.wq.mon$basin.q.ratio,na.rm=T),max(cre.hydro.wq.mon$basin.q.ratio,na.rm=T),length.out=100)
-mod.pred=predict(mod,data.frame(basin.q.ratio=x.val),interval="confidence")
-shaded.range(x.val,exp(mod.pred[,2]),exp(mod.pred[,3]),"grey",lty=1)
-lines(x.val,exp(mod.pred[,1]),lty=2)
-axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj))
-axis_fun(2,ymaj,ymin,ymaj);box(lwd=1)
-mtext(side=1,line=2,expression(paste("Q"["C43Basin"],": Q"["S79"])),cex=0.8)
+with(cre.hydro.wq.mon,points(S78,mean.TN,pch=21,bg="indianred1",lwd=0.1))
+mod=lm((1/mean.TN)~S78,cre.hydro.wq.mon)
+x.val=seq(min(cre.hydro.wq.mon$S78,na.rm=T),max(cre.hydro.wq.mon$S78,na.rm=T),length.out=100)
+mod.pred=predict(mod,data.frame(S78=x.val),interval="confidence")
+shaded.range(x.val,1/(mod.pred[,2]),1/(mod.pred[,3]),"grey",lty=1)
+lines(x.val,1/(mod.pred[,1]),lty=2)
+axis_fun(1,line=-0.5,xmaj,xmin,xmaj/1e4)
+axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
+mtext(side=1,line=1.75,expression(paste("Q"["78"]," x10"^4,"; CFS")),cex=0.8)
 
-tmp=ddply(cre.hydro.wq.mon,"hydro.season",summarise,mean.val=mean(mean.TN,na.rm=T),SE.val=SE(mean.TN))
-#ylim.val=c(0.05,0.35);ymaj=log.scale.fun(ylim.val,"major");ymin=log.scale.fun(ylim.val,"minor")
-#boxplot(mean.TN~hydro.season,cre.hydro.wq.mon)
-x=barplot(tmp$mean.val,ylim=ylim.val,yaxt="n",xpd=F)
-with(tmp,errorbars(x,mean.val,SE.val,col="black"))
-axis_fun(2,ymaj,ymin,ymaj)
-axis_fun(1,x,x,c("Wet","Dry"));box(lwd=1)
-mtext(side=1,line=2,"Hydrologic Season",cex=0.8)
-mtext(side=2,line=-0.5,outer=T,"Total Nitrogen (mg L\u207B\u00B9)")
+xlim.val=c(9,12);by.x=1;xmaj=seq(xlim.val[1],xlim.val[2],by.x);xmin=seq(xlim.val[1],xlim.val[2],by.x/2)
+plot(mean.TN~S235_T,cre.hydro.wq.mon,ylim=ylim.val,xlim=xlim.val,type="n",axes=F,ylab=NA,xlab=NA)
+abline(h=ymaj,v=xmaj,lty=3,col="grey")
+with(cre.hydro.wq.mon,points(S235_T,mean.TN,pch=21,bg="indianred1",lwd=0.1))
+mod=lm((1/mean.TN)~S235_T,cre.hydro.wq.mon)
+x.val=seq(min(cre.hydro.wq.mon$S235_T,na.rm=T),max(cre.hydro.wq.mon$S235_T,na.rm=T),length.out=100)
+mod.pred=predict(mod,data.frame(S235_T=x.val),interval="confidence")
+shaded.range(x.val,1/(mod.pred[,2]),1/(mod.pred[,3]),"grey",lty=1)
+lines(x.val,1/(mod.pred[,1]),lty=2)
+axis_fun(1,line=-0.5,xmaj,xmin,format(xmaj))
+axis_fun(2,ymaj,ymin,format(ymaj));box(lwd=1)
+mtext(side=1,line=1.75,"S235 TW Stage (Ft NGVD29)",cex=0.8)
+
 
 dev.off()
+
